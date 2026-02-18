@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TwoBirds Tipout</title>
+
+  <style>
+    :root{
+      --bg:#f6f7f9; --card:#fff; --border:#e5e7eb; --text:#111827; --muted:#6b7280;
+      --green:#1f9d55; --green-dark:#178a48;
+    }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+    .app{ max-width:1200px; margin:0 auto; padding:20px; }
+
+    header{
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      margin-bottom:18px;
+    }
+    .brand{
+      display:flex; align-items:center; gap:14px;
+    }
+    .logo-wrap{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:10px 12px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04);
+      display:flex; align-items:center;
+    }
+    .logo{
+      height:42px; width:auto; display:block; object-fit:contain;
+    }
+    h1{ margin:0; font-size:28px; font-weight:900; letter-spacing:-0.5px; }
+    .subtitle{ color:var(--muted); font-size:14px; margin-top:4px; }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:20px;
+      margin-bottom:16px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04);
+    }
+    label{ display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
+    input{
+      width:100%;
+      padding:14px 16px;
+      font-size:18px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      outline:none;
+    }
+    input:focus{ border-color:var(--green); }
+
+    .row{ display:flex; gap:14px; flex-wrap:wrap; align-items:end; }
+    .row > *{ flex:1; min-width:220px; }
+
+    button{
+      padding:14px 18px;
+      font-size:16px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:#f9fafb;
+      cursor:pointer;
+      font-weight:700;
+    }
+    button.primary{ background:var(--green); color:#fff; border-color:var(--green); }
+    button.primary:hover{ background:var(--green-dark); }
+    button.reset{ background:#eef0f3; }
+
+    table{ width:100%; border-collapse:collapse; margin-top:6px; }
+    th{
+      text-align:left;
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+      padding-bottom:8px;
+    }
+    td{ padding:10px 0; border-bottom:1px solid var(--border); }
+    th.right, td.right{ text-align:right; }
+
+    .remove{
+      background:none; border:none; font-size:18px; cursor:pointer; color:#9ca3af;
+      padding:8px 10px; border-radius:12px;
+    }
+    .remove:hover{ color:#ef4444; background:#fff5f5; }
+
+    .results-card{ background:linear-gradient(180deg,#ffffff,#f9fafb); }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <header>
+      <div class="brand">
+        <div class="logo-wrap">
+          <img class="logo" src="TwoBirdsLogo_Lockup_Black.webp" alt="TwoBirds Event Group">
+        </div>
+        <div>
+          <h1>TwoBirds Tipout</h1>
+          <div class="subtitle">Event payout calculator</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- INPUT -->
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Total Tip Pot ($)</label>
+          <input id="pot" type="number" step="1" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:16px;">
+        <button id="addEvent">+ Event Staff</button>
+        <button id="addBartender">+ Bartender</button>
+        <button id="calc" class="primary">Calculate</button>
+        <button id="reset" class="reset">Reset</button>
+      </div>
+    </div>
+
+    <!-- EVENT STAFF -->
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Event Staff</th>
+            <th class="right"></th>
+          </tr>
+        </thead>
+        <tbody id="eventBody"></tbody>
+      </table>
+    </div>
+
+    <!-- BARTENDERS -->
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Hours</th>
+            <th class="right"></th>
+          </tr>
+        </thead>
+        <tbody id="peopleBody"></tbody>
+      </table>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="card results-card" id="resultsCard" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th class="right">$/hr</th>
+            <th class="right">Tipout</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const EVENT_STAFF_PCT = 0.10;
+
+function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
+function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+function addEventStaff(name=""){
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><input placeholder="Event Staff" value="${escapeHtml(name)}"></td>
+    <td class="right"><button class="remove" title="Remove">✕</button></td>
+  `;
+  tr.querySelector("button").onclick = () => tr.remove();
+  $("eventBody").appendChild(tr);
+}
+
+function addBartender(name="", hours=""){
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
+    <td><input type="number" step="0.25" value="${escapeHtml(hours)}"></td>
+    <td class="right"><button class="remove" title="Remove">✕</button></td>
+  `;
+  tr.querySelector("button").onclick = () => tr.remove();
+  $("peopleBody").appendChild(tr);
+}
+
+function hardReset(){
+  $("pot").value = "";
+  $("eventBody").innerHTML = "";
+  $("peopleBody").innerHTML = "";
+  $("resultsBody").innerHTML = "";
+  $("resultsCard").style.display = "none";
+  addBartender();
+  addBartender();
+}
+
+addBartender(); addBartender();
+
+$("addEvent").onclick = () => addEventStaff();
+$("addBartender").onclick = () => addBartender();
+$("reset").onclick = hardReset;
+
+$("calc").onclick = () => {
+  $("resultsBody").innerHTML = "";
+  $("resultsCard").style.display = "none";
+
+  const pot = Math.floor(+$("pot").value || 0);
+  if (pot <= 0) return;
+
+  const eventStaff = [...$("eventBody").querySelectorAll("input")]
+    .map((i, idx) => (i.value || "").trim() || `Event Staff ${idx+1}`);
+
+  const bartenders = [...$("peopleBody").querySelectorAll("tr")]
+    .map((tr, idx) => {
+      const i = tr.querySelectorAll("input");
+      return { name: (i[0].value || "").trim() || `Bartender ${idx+1}`, hours: +i[1].value || 0 };
+    })
+    .filter(b => b.hours > 0);
+
+  if (!bartenders.length) return;
+
+  const eventTotal = eventStaff.length ? Math.floor(pot * EVENT_STAFF_PCT) : 0;
+  const eventEach = eventStaff.length ? Math.floor(eventTotal / eventStaff.length) : 0;
+
+  const remaining = pot - eventTotal;
+  const totalHours = bartenders.reduce((s,b)=>s+b.hours,0);
+  const rate = remaining / totalHours;
+
+  const body = $("resultsBody");
+
+  eventStaff.forEach(name => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(name)}</td>
+      <td class="right">—</td>
+      <td class="right"><b>${moneyWhole(eventEach)}</b></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  bartenders.forEach(b => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(b.name)}</td>
+      <td class="right">${moneyRate(rate)}</td>
+      <td class="right"><b>${moneyWhole(Math.floor(b.hours * rate))}</b></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  $("resultsCard").style.display = "block";
+};
+</script>
+
+</body>
+</html>
