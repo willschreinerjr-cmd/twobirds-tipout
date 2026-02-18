@@ -14,70 +14,37 @@
     body{ margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
     .app{ max-width:1200px; margin:0 auto; padding:20px; }
 
-    header{
-      display:flex; align-items:center; justify-content:space-between; gap:16px;
-      margin-bottom:18px;
-    }
-    .brand{
-      display:flex; align-items:center; gap:14px;
-    }
+    header{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
+    .brand{ display:flex; align-items:center; gap:14px; }
     .logo-wrap{
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:16px;
-      padding:10px 12px;
-      box-shadow:0 6px 18px rgba(0,0,0,0.04);
-      display:flex; align-items:center;
+      background:#fff; border:1px solid var(--border); border-radius:16px; padding:10px 12px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04); display:flex; align-items:center;
     }
-    .logo{
-      height:42px; width:auto; display:block; object-fit:contain;
-    }
+    .logo{ height:42px; width:auto; display:block; object-fit:contain; }
     h1{ margin:0; font-size:28px; font-weight:900; letter-spacing:-0.5px; }
     .subtitle{ color:var(--muted); font-size:14px; margin-top:4px; }
 
     .card{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:18px;
-      padding:20px;
-      margin-bottom:16px;
+      background:var(--card); border:1px solid var(--border); border-radius:18px; padding:20px; margin-bottom:16px;
       box-shadow:0 6px 18px rgba(0,0,0,0.04);
     }
     label{ display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
-    input{
-      width:100%;
-      padding:14px 16px;
-      font-size:18px;
-      border-radius:14px;
-      border:1px solid var(--border);
-      outline:none;
-    }
+    input{ width:100%; padding:14px 16px; font-size:18px; border-radius:14px; border:1px solid var(--border); outline:none; }
     input:focus{ border-color:var(--green); }
 
     .row{ display:flex; gap:14px; flex-wrap:wrap; align-items:end; }
     .row > *{ flex:1; min-width:220px; }
 
     button{
-      padding:14px 18px;
-      font-size:16px;
-      border-radius:14px;
-      border:1px solid var(--border);
-      background:#f9fafb;
-      cursor:pointer;
-      font-weight:700;
+      padding:14px 18px; font-size:16px; border-radius:14px; border:1px solid var(--border);
+      background:#f9fafb; cursor:pointer; font-weight:700;
     }
     button.primary{ background:var(--green); color:#fff; border-color:var(--green); }
     button.primary:hover{ background:var(--green-dark); }
     button.reset{ background:#eef0f3; }
 
     table{ width:100%; border-collapse:collapse; margin-top:6px; }
-    th{
-      text-align:left;
-      font-size:13px;
-      color:var(--muted);
-      font-weight:700;
-      padding-bottom:8px;
-    }
+    th{ text-align:left; font-size:13px; color:var(--muted); font-weight:700; padding-bottom:8px; }
     td{ padding:10px 0; border-bottom:1px solid var(--border); }
     th.right, td.right{ text-align:right; }
 
@@ -106,7 +73,6 @@
       </div>
     </header>
 
-    <!-- INPUT -->
     <div class="card">
       <div class="row">
         <div>
@@ -123,7 +89,6 @@
       </div>
     </div>
 
-    <!-- EVENT STAFF -->
     <div class="card">
       <table>
         <thead>
@@ -136,12 +101,11 @@
       </table>
     </div>
 
-    <!-- BARTENDERS -->
     <div class="card">
       <table>
         <thead>
           <tr>
-            <th>Name</th>
+            <th>Bartender</th>
             <th>Hours</th>
             <th class="right"></th>
           </tr>
@@ -150,7 +114,6 @@
       </table>
     </div>
 
-    <!-- RESULTS -->
     <div class="card results-card" id="resultsCard" style="display:none;">
       <table>
         <thead>
@@ -168,7 +131,9 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const EVENT_STAFF_PCT = 0.10;
+
+// 10% FOR EACH EVENT STAFF (not shared)
+const EVENT_STAFF_PCT_EACH = 0.10;
 
 function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
@@ -192,7 +157,7 @@ function addEventStaff(name=""){
 function addBartender(name="", hours=""){
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
+    <td><input placeholder="Bartender" value="${escapeHtml(name)}"></td>
     <td><input type="number" step="0.25" value="${escapeHtml(hours)}"></td>
     <td class="right"><button class="remove" title="Remove">✕</button></td>
   `;
@@ -235,15 +200,22 @@ $("calc").onclick = () => {
 
   if (!bartenders.length) return;
 
-  const eventTotal = eventStaff.length ? Math.floor(pot * EVENT_STAFF_PCT) : 0;
-  const eventEach = eventStaff.length ? Math.floor(eventTotal / eventStaff.length) : 0;
+  // Event Staff total = 10% each
+  const eventEach = eventStaff.length ? Math.floor(pot * EVENT_STAFF_PCT_EACH) : 0;
+  const eventTotal = eventEach * eventStaff.length;
 
-  const remaining = pot - eventTotal;
+  const remaining = Math.max(0, pot - eventTotal);
+
   const totalHours = bartenders.reduce((s,b)=>s+b.hours,0);
-  const rate = remaining / totalHours;
+  if (totalHours <= 0) return;
+
+  // ✅ Base bartender rate, rounded to 2 decimals (display + calculation match)
+  const baseRateRaw = remaining / totalHours;
+  const baseRate = Math.round(baseRateRaw * 100) / 100;
 
   const body = $("resultsBody");
 
+  // Event Staff rows
   eventStaff.forEach(name => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -254,12 +226,14 @@ $("calc").onclick = () => {
     body.appendChild(tr);
   });
 
+  // Bartender rows (tipout uses rounded baseRate)
   bartenders.forEach(b => {
+    const tipout = Math.floor(b.hours * baseRate);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(b.name)}</td>
-      <td class="right">${moneyRate(rate)}</td>
-      <td class="right"><b>${moneyWhole(Math.floor(b.hours * rate))}</b></td>
+      <td class="right">${moneyRate(baseRate)}</td>
+      <td class="right"><b>${moneyWhole(tipout)}</b></td>
     `;
     body.appendChild(tr);
   });
