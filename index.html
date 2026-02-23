@@ -71,6 +71,35 @@
     .results-card{ background:linear-gradient(180deg,#ffffff,#f9fafb); }
     .results-empty{ color:var(--muted); font-size:14px; padding:10px 2px; }
 
+    .name-suggestion-menu{
+      position:fixed;
+      z-index:9999;
+      display:none;
+      max-height:240px;
+      overflow:auto;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:12px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.08);
+    }
+    .name-suggestion-item{
+      width:100%;
+      text-align:left;
+      border:0;
+      border-bottom:1px solid #f3f4f6;
+      background:#fff;
+      padding:10px 12px;
+      font-size:14px;
+      font-weight:600;
+      color:#111827;
+      cursor:pointer;
+    }
+    .name-suggestion-item:last-child{ border-bottom:0; }
+    .name-suggestion-item.active,
+    .name-suggestion-item:hover{
+      background:#eef6ff;
+    }
+
     @media (max-width: 720px){
       .actions{ gap:8px; }
       .actions button{ flex:1 1 calc(50% - 8px); min-width:0; padding:14px 12px; }
@@ -243,6 +272,9 @@ const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeB
 const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
 const DRAFT_KEY = "twobirds-tipout-draft-v1";
 let latestReceipt = null;
+let activeNameInput = null;
+let activeNameSuggestions = [];
+let activeNameSuggestionIndex = -1;
 
 function escapeHtml(s){
   return String(s ?? "")
@@ -258,13 +290,8 @@ function addEventStaff(name="", focusName=true){
   `;
   const nameInput = tr.querySelector("input");
   enableNameAutocomplete(nameInput);
+  enableArrowBoxNavigation(nameInput);
   enforceLettersOnly(nameInput);
-  nameInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addEventStaff("", true);
-    }
-  });
   tr.querySelector("button").onclick = () => {
     tr.remove();
     markUncalculated();
@@ -285,19 +312,9 @@ function addBartender(name="", hours="", focusName=true){
   `;
   const inputs = tr.querySelectorAll("input");
   enableNameAutocomplete(inputs[0]);
+  enableArrowBoxNavigation(inputs[0]);
+  enableArrowBoxNavigation(inputs[1]);
   enforceLettersOnly(inputs[0]);
-  inputs[0].addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addBartender("", "", true);
-    }
-  });
-  inputs[1].addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addBartender("", "", true);
-    }
-  });
   tr.querySelector("button").onclick = () => {
     tr.remove();
     markUncalculated();
@@ -344,15 +361,46 @@ function enforceLettersOnly(input){
 }
 
 function enableNameAutocomplete(input){
-  input.setAttribute("list", "nameSuggestions");
   input.setAttribute("autocomplete", "off");
   input.addEventListener("focus", () => {
-    updateNameSuggestions(input.value || "");
+    updateNameSuggestions(input.value || "", input);
   });
   input.addEventListener("input", () => {
-    updateNameSuggestions(input.value || "");
+    updateNameSuggestions(input.value || "", input);
+  });
+  input.addEventListener("keydown", e => {
+    if (!activeNameSuggestions.length || activeNameInput !== input) return;
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      moveNameSuggestionHighlight(e.shiftKey ? -1 : 1);
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveNameSuggestionHighlight(1);
+      return;
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveNameSuggestionHighlight(-1);
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyNameSuggestion(activeNameSuggestionIndex >= 0 ? activeNameSuggestionIndex : 0);
+      return;
+    }
+
+    if (e.key === "Escape") {
+      hideNameSuggestionMenu();
+    }
   });
   input.addEventListener("blur", () => {
+    setTimeout(hideNameSuggestionMenu, 100);
     autoFillUniqueFirstName(input);
   });
 }
@@ -373,25 +421,156 @@ function autoFillUniqueFirstName(input){
 }
 
 function initNameSuggestions(){
-  const list = $("nameSuggestions");
-  list.innerHTML = "";
+  if ($("nameSuggestionMenu")) return;
+
+  const menu = document.createElement("div");
+  menu.id = "nameSuggestionMenu";
+  menu.className = "name-suggestion-menu";
+  document.body.appendChild(menu);
 }
 
-function updateNameSuggestions(query){
-  const list = $("nameSuggestions");
+function getNameMatches(query){
   const text = String(query || "").trim().toLowerCase();
-  list.innerHTML = "";
+  if (!text) return [];
 
-  if (!text) return;
-
-  STAFF_NAMES
+  return STAFF_NAMES
     .filter(name => name.toLowerCase().startsWith(text))
-    .slice(0, 12)
-    .forEach(name => {
-      const option = document.createElement("option");
-      option.value = name;
-      list.appendChild(option);
-    });
+    .slice(0, 12);
+}
+
+function updateNameSuggestions(query, input){
+  const menu = $("nameSuggestionMenu");
+  if (!menu || !input) return;
+
+  const matches = getNameMatches(query);
+  if (!matches.length) {
+    hideNameSuggestionMenu();
+    return;
+  }
+
+  activeNameInput = input;
+  activeNameSuggestions = matches;
+  activeNameSuggestionIndex = 0;
+
+  renderNameSuggestionMenu();
+  positionNameSuggestionMenu(input);
+}
+
+function renderNameSuggestionMenu(){
+  const menu = $("nameSuggestionMenu");
+  if (!menu || !activeNameSuggestions.length) {
+    hideNameSuggestionMenu();
+    return;
+  }
+
+  menu.innerHTML = "";
+
+  activeNameSuggestions.forEach((name, idx) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "name-suggestion-item" + (idx === activeNameSuggestionIndex ? " active" : "");
+    item.textContent = name;
+    item.tabIndex = -1;
+    item.onmousedown = e => e.preventDefault();
+    item.onclick = () => applyNameSuggestion(idx);
+    menu.appendChild(item);
+  });
+
+  menu.style.display = "block";
+}
+
+function positionNameSuggestionMenu(input){
+  const menu = $("nameSuggestionMenu");
+  if (!menu || !input) return;
+
+  const rect = input.getBoundingClientRect();
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.width = `${rect.width}px`;
+}
+
+function moveNameSuggestionHighlight(delta){
+  if (!activeNameSuggestions.length) return;
+
+  const len = activeNameSuggestions.length;
+  activeNameSuggestionIndex = (activeNameSuggestionIndex + delta + len) % len;
+  renderNameSuggestionMenu();
+}
+
+function applyNameSuggestion(idx){
+  if (!activeNameInput) return;
+  const name = activeNameSuggestions[idx];
+  if (!name) return;
+
+  activeNameInput.value = name;
+  saveDraft();
+  hideNameSuggestionMenu();
+}
+
+function hideNameSuggestionMenu(){
+  const menu = $("nameSuggestionMenu");
+  if (menu) {
+    menu.style.display = "none";
+    menu.innerHTML = "";
+  }
+  activeNameSuggestions = [];
+  activeNameSuggestionIndex = -1;
+  activeNameInput = null;
+}
+
+function moveBoxFocusByArrow(currentInput, key){
+  const row = currentInput.closest("tr");
+  const tbody = currentInput.closest("tbody");
+  if (!row || !tbody) return;
+
+  const rows = [...tbody.querySelectorAll("tr")];
+  const rowIndex = rows.indexOf(row);
+  if (rowIndex < 0) return;
+
+  const currentInputs = [...row.querySelectorAll("input")];
+  const colIndex = currentInputs.indexOf(currentInput);
+  if (colIndex < 0) return;
+
+  if (key === "ArrowLeft" || key === "ArrowRight") {
+    const targetCol = key === "ArrowLeft" ? colIndex - 1 : colIndex + 1;
+    if (targetCol < 0 || targetCol >= currentInputs.length) return;
+    const target = currentInputs[targetCol];
+    target.focus();
+    if (typeof target.select === "function") target.select();
+    return;
+  }
+
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    const targetRowIndex = key === "ArrowUp" ? rowIndex - 1 : rowIndex + 1;
+    if (targetRowIndex < 0 || targetRowIndex >= rows.length) return;
+    const targetInputs = [...rows[targetRowIndex].querySelectorAll("input")];
+    if (!targetInputs.length) return;
+
+    const safeColIndex = Math.min(colIndex, targetInputs.length - 1);
+    const target = targetInputs[safeColIndex];
+    target.focus();
+    if (typeof target.select === "function") target.select();
+  }
+}
+
+function enableArrowBoxNavigation(input){
+  input.addEventListener("keydown", e => {
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+
+    const tbody = input.closest("tbody");
+    if (!tbody || (tbody.id !== "eventBody" && tbody.id !== "peopleBody")) return;
+
+    if (
+      (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+      activeNameSuggestions.length &&
+      activeNameInput === input
+    ) {
+      return;
+    }
+
+    e.preventDefault();
+    moveBoxFocusByArrow(input, e.key);
+  });
 }
 
 function sanitizeNameInput(value){
