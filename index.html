@@ -31,9 +31,17 @@
     label{ display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
     input{ width:100%; padding:14px 16px; font-size:18px; border-radius:14px; border:1px solid var(--border); outline:none; }
     input:focus{ border-color:var(--green); }
+    textarea{ width:100%; padding:12px 14px; font-size:15px; border-radius:14px; border:1px solid var(--border); outline:none; resize:vertical; min-height:84px; font-family:inherit; }
+    textarea:focus{ border-color:var(--green); }
 
     .row{ display:flex; gap:14px; flex-wrap:wrap; align-items:end; }
     .row > *{ flex:1; min-width:220px; }
+    .actions{ gap:10px; }
+    .actions button{ min-height:48px; }
+
+    .status{ font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; }
+    .status.success{ color:var(--green-dark); }
+    .status.error{ color:#b91c1c; }
 
     button{
       padding:14px 18px; font-size:16px; border-radius:14px; border:1px solid var(--border);
@@ -41,7 +49,13 @@
     }
     button.primary{ background:var(--green); color:#fff; border-color:var(--green); }
     button.primary:hover{ background:var(--green-dark); }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+    button.primary:disabled{ background:#9ca3af; border-color:#9ca3af; }
     button.reset{ background:#eef0f3; }
+    .venue-picker{ margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fafafa; }
+    .venue-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    .venue-actions button{ padding:10px 14px; font-size:14px; }
+    .venue-actions .cancel{ background:#eef0f3; }
 
     table{ width:100%; border-collapse:collapse; margin-top:6px; }
     th{ text-align:left; font-size:13px; color:var(--muted); font-weight:700; padding-bottom:8px; }
@@ -55,6 +69,12 @@
     .remove:hover{ color:#ef4444; background:#fff5f5; }
 
     .results-card{ background:linear-gradient(180deg,#ffffff,#f9fafb); }
+    .results-empty{ color:var(--muted); font-size:14px; padding:10px 2px; }
+
+    @media (max-width: 720px){
+      .actions{ gap:8px; }
+      .actions button{ flex:1 1 calc(50% - 8px); min-width:0; padding:14px 12px; }
+    }
   </style>
 </head>
 
@@ -77,16 +97,29 @@
       <div class="row">
         <div>
           <label>Total Tip Pot ($)</label>
-          <input id="pot" type="number" step="1" />
+          <input id="pot" type="text" inputmode="numeric" pattern="[0-9$,.]*" value="$" />
         </div>
       </div>
 
-      <div class="row" style="margin-top:16px;">
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label>Notes (optional)</label>
+          <textarea id="notes" placeholder="Add any shift notes or money details..."></textarea>
+        </div>
+      </div>
+
+      <div class="row actions" style="margin-top:16px;">
         <button id="addEvent">+ Event Staff</button>
         <button id="addBartender">+ Bartender</button>
         <button id="calc" class="primary">Calculate</button>
+        <button id="sendReceipt" class="primary" disabled>Send Receipt</button>
         <button id="reset" class="reset">Reset</button>
       </div>
+      <div id="venuePicker" class="venue-picker" style="display:none;">
+        <label style="margin-bottom:8px;">Select Venue</label>
+        <div id="venueButtons" class="venue-actions"></div>
+      </div>
+      <div id="sendStatus" class="status"></div>
     </div>
 
     <div class="card">
@@ -115,6 +148,7 @@
     </div>
 
     <div class="card results-card" id="resultsCard" style="display:none;">
+      <div id="resultsEmpty" class="results-empty">Add staff and hours, then click Calculate to preview tipouts.</div>
       <table>
         <thead>
           <tr>
@@ -127,6 +161,8 @@
       </table>
     </div>
 
+    <datalist id="nameSuggestions"></datalist>
+
   </div>
 
 <script>
@@ -138,65 +174,506 @@ const EVENT_STAFF_PCT_EACH = 0.10;
 function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
 
+const VENUES = ["Ivy House", "Starling", "Rivulete", "PSP", "Society"];
+const STAFF_NAMES = [
+  "Alex Kerkman",
+  "Alexis Madau",
+  "Andrew Pecunia",
+  "Anya Kusnierewicz",
+  "Ari Manta",
+  "Ashley Brunette",
+  "Avery Diercks",
+  "Will Schreiner",
+  "Brandon James",
+  "Britt Johnson",
+  "Caleb Lollis",
+  "Calvin Giese",
+  "Cam Hall",
+  "Cam Rusboldt",
+  "Cassie DeVillers",
+  "Chase Barthel",
+  "Claire Bjorgo",
+  "Dana Folger",
+  "Danny Graybow",
+  "Duleon Schneider",
+  "Emily York",
+  "Emma Lundberg",
+  "Grace Herrmann",
+  "Haley DeSart",
+  "Harrison Chalupka",
+  "Ian O’Connor",
+  "Isaac Moburg",
+  "Jackie Stecker",
+  "Jackson Sharpee",
+  "Jess Stark",
+  "Jesse Hertzke",
+  "JJ Ingrassia",
+  "Joah Rivas",
+  "Joe Baumann",
+  "Joyce Walton",
+  "Julianne Dollard",
+  "Kirk Mngodo",
+  "Kristiana Longe",
+  "Lacey Kremer",
+  "Leah Maher",
+  "Lesley Nicholas",
+  "Lily Correa Rivas",
+  "Luke Schreiner",
+  "Manolo Delgato",
+  "Maria Stamos",
+  "Milo Wehmeyer",
+  "Natalie Dibert",
+  "Noah Aitch",
+  "Olivia Bartels",
+  "Olivia Gaba",
+  "Olivia Rincon",
+  "Renee Ehlers",
+  "Rubin Steward",
+  "Sabrina Ruffalo",
+  "Sal Gauthier",
+  "Shawn McDaniel",
+  "Shifra Rothenberg",
+  "Sophia Norenberg",
+  "Tedros Adam",
+  "Ty Tague",
+  "Victoria Kieselhorst",
+  "Will Timmel"
+];
+const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y/edit?usp=sharing";
+const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
+const DRAFT_KEY = "twobirds-tipout-draft-v1";
+let latestReceipt = null;
+
 function escapeHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-function addEventStaff(name=""){
+function addEventStaff(name="", focusName=true){
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td><input placeholder="Event Staff" value="${escapeHtml(name)}"></td>
     <td class="right"><button class="remove" title="Remove">✕</button></td>
   `;
-  tr.querySelector("button").onclick = () => tr.remove();
+  const nameInput = tr.querySelector("input");
+  enableNameAutocomplete(nameInput);
+  enforceLettersOnly(nameInput);
+  nameInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addEventStaff("", true);
+    }
+  });
+  tr.querySelector("button").onclick = () => {
+    tr.remove();
+    markUncalculated();
+    saveDraft();
+  };
   $("eventBody").appendChild(tr);
+  if (focusName) nameInput.focus();
+  markUncalculated();
+  saveDraft();
 }
 
-function addBartender(name="", hours=""){
+function addBartender(name="", hours="", focusName=true){
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td><input placeholder="Bartender" value="${escapeHtml(name)}"></td>
     <td><input type="number" step="0.25" value="${escapeHtml(hours)}"></td>
     <td class="right"><button class="remove" title="Remove">✕</button></td>
   `;
-  tr.querySelector("button").onclick = () => tr.remove();
+  const inputs = tr.querySelectorAll("input");
+  enableNameAutocomplete(inputs[0]);
+  enforceLettersOnly(inputs[0]);
+  inputs[0].addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addBartender("", "", true);
+    }
+  });
+  inputs[1].addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addBartender("", "", true);
+    }
+  });
+  tr.querySelector("button").onclick = () => {
+    tr.remove();
+    markUncalculated();
+    saveDraft();
+  };
   $("peopleBody").appendChild(tr);
+  if (focusName) inputs[0].focus();
+  markUncalculated();
+  saveDraft();
+}
+
+function setCanSendReceipt(enabled){
+  $("sendReceipt").disabled = !enabled;
+}
+
+function markUncalculated(){
+  latestReceipt = null;
+  setCanSendReceipt(false);
+  if ($("resultsBody").children.length === 0){
+    $("resultsCard").style.display = "block";
+    $("resultsEmpty").style.display = "block";
+  }
+}
+
+function enforceMoneyInput(input){
+  input.addEventListener("input", () => {
+    const digits = String(input.value || "").replace(/\D+/g, "");
+    input.value = "$" + (digits ? Number(digits).toLocaleString() : "");
+  });
+
+  input.addEventListener("focus", () => {
+    if (!input.value) input.value = "$";
+  });
+}
+
+function getPotNumber(){
+  return Math.floor(+(String($("pot").value || "").replace(/[^0-9]/g, "") || 0));
+}
+
+function enforceLettersOnly(input){
+  input.addEventListener("input", () => {
+    input.value = sanitizeNameInput(input.value || "");
+  });
+}
+
+function enableNameAutocomplete(input){
+  input.setAttribute("list", "nameSuggestions");
+  input.setAttribute("autocomplete", "off");
+  input.addEventListener("focus", () => {
+    updateNameSuggestions(input.value || "");
+  });
+  input.addEventListener("input", () => {
+    updateNameSuggestions(input.value || "");
+  });
+  input.addEventListener("blur", () => {
+    autoFillUniqueFirstName(input);
+  });
+}
+
+function autoFillUniqueFirstName(input){
+  const raw = normalizeName(input.value || "");
+  if (!raw) return;
+
+  const query = raw.toLowerCase();
+  const matches = STAFF_NAMES.filter(name => {
+    return String(name || "").toLowerCase().startsWith(query);
+  });
+
+  if (matches.length === 1) {
+    input.value = matches[0];
+    saveDraft();
+  }
+}
+
+function initNameSuggestions(){
+  const list = $("nameSuggestions");
+  list.innerHTML = "";
+}
+
+function updateNameSuggestions(query){
+  const list = $("nameSuggestions");
+  const text = String(query || "").trim().toLowerCase();
+  list.innerHTML = "";
+
+  if (!text) return;
+
+  STAFF_NAMES
+    .filter(name => name.toLowerCase().startsWith(text))
+    .slice(0, 12)
+    .forEach(name => {
+      const option = document.createElement("option");
+      option.value = name;
+      list.appendChild(option);
+    });
+}
+
+function sanitizeNameInput(value){
+  return String(value || "").replace(/[^A-Za-z\s'’\-]/g, "");
+}
+
+function normalizeName(value){
+  return sanitizeNameInput(value)
+    .replace(/\s+/g, " ")
+    .replace(/-{2,}/g, "-")
+    .replace(/'{2,}/g, "'")
+    .trim();
+}
+
+function isValidTypedName(value){
+  const letters = String(value || "").replace(/[^A-Za-z]/g, "");
+  return letters.length >= 2;
+}
+
+function getDraft(){
+  const eventStaff = [...$("eventBody").querySelectorAll("input")].map(i => normalizeName(i.value));
+  const bartenders = [...$("peopleBody").querySelectorAll("tr")].map(tr => {
+    const inputs = tr.querySelectorAll("input");
+    return {
+      name: normalizeName(inputs[0].value),
+      hours: inputs[1].value || ""
+    };
+  });
+
+  return {
+    pot: $("pot").value || "",
+    notes: $("notes").value || "",
+    eventStaff,
+    bartenders
+  };
+}
+
+function saveDraft(){
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(getDraft()));
+  } catch {}
+}
+
+function clearDraft(){
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {}
+}
+
+function restoreDraft(){
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return false;
+
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== "object") return false;
+
+    const potDigits = String(draft.pot || "").replace(/\D+/g, "");
+    $("pot").value = "$" + (potDigits ? Number(potDigits).toLocaleString() : "");
+    $("notes").value = String(draft.notes || "");
+
+    $("eventBody").innerHTML = "";
+    $("peopleBody").innerHTML = "";
+
+    const events = Array.isArray(draft.eventStaff) ? draft.eventStaff : [];
+    const bartenders = Array.isArray(draft.bartenders) ? draft.bartenders : [];
+
+    events.forEach(name => addEventStaff(normalizeName(name)));
+
+    if (bartenders.length) {
+      bartenders.forEach(b => addBartender(normalizeName(b.name || ""), b.hours || ""));
+    } else {
+      addBartender();
+      addBartender();
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function todayLocalISO(){
+  const d = new Date();
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0,10);
+}
+
+function setStatus(msg, type=""){
+  const el = $("sendStatus");
+  el.textContent = msg;
+  el.className = `status ${type}`.trim();
+}
+
+function hideVenuePicker(){
+  const picker = $("venuePicker");
+  const buttons = $("venueButtons");
+  buttons.innerHTML = "";
+  picker.style.display = "none";
+}
+
+function pickVenue(){
+  return new Promise(resolve => {
+    const picker = $("venuePicker");
+    const buttons = $("venueButtons");
+    buttons.innerHTML = "";
+
+    VENUES.forEach(venue => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = venue;
+      btn.onclick = () => {
+        hideVenuePicker();
+        resolve(venue);
+      };
+      buttons.appendChild(btn);
+    });
+
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "cancel";
+    cancel.textContent = "Cancel";
+    cancel.onclick = () => {
+      hideVenuePicker();
+      resolve(null);
+    };
+    buttons.appendChild(cancel);
+
+    picker.style.display = "block";
+  });
+}
+
+async function postToAppsScript(endpoint, payload){
+  const json = JSON.stringify(payload);
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    body: json
+  });
+
+  const text = await res.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("Backend returned an unreadable response.");
+  }
+
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `Send failed (HTTP ${res.status}).`);
+  }
+
+  return data;
+}
+
+async function sendReceipt(){
+  setStatus("");
+  hideVenuePicker();
+
+  if (!latestReceipt){
+    setStatus("Calculate first, then send the receipt.", "error");
+    return;
+  }
+
+  const venue = await pickVenue();
+  if (!venue){
+    setStatus("Send canceled or invalid venue selection.", "error");
+    return;
+  }
+
+  const receipt = {
+    ...latestReceipt,
+    date: todayLocalISO(),
+    venue,
+    notes: ($("notes").value || "").trim(),
+    submittedAt: new Date().toISOString()
+  };
+
+  if (!RECEIPT_ENDPOINT){
+    setStatus("Receipt is ready. Backend needs Google Apps Script Web App URL ending in /exec.", "error");
+    return;
+  }
+
+  if (!RECEIPT_ENDPOINT.includes("/exec")){
+    setStatus("Configured backend URL is invalid. Use the Apps Script Web App /exec URL.", "error");
+    return;
+  }
+
+  try {
+    setStatus("Sending receipt...", "");
+    const response = await postToAppsScript(RECEIPT_ENDPOINT, receipt);
+    if (Number(response.replacedRows || 0) > 0){
+      setStatus("Receipt updated and sent!", "success");
+    } else {
+      setStatus("Receipt sent!", "success");
+    }
+  } catch (err) {
+    const msg = err && err.message ? err.message : "Send failed. Verify Apps Script deployment and access to the shared sheet.";
+    setStatus(msg, "error");
+  }
 }
 
 function hardReset(){
-  $("pot").value = "";
+  $("pot").value = "$";
+  $("notes").value = "";
   $("eventBody").innerHTML = "";
   $("peopleBody").innerHTML = "";
   $("resultsBody").innerHTML = "";
-  $("resultsCard").style.display = "none";
-  addBartender();
-  addBartender();
+  $("resultsCard").style.display = "block";
+  $("resultsEmpty").style.display = "block";
+  latestReceipt = null;
+  setCanSendReceipt(false);
+  setStatus("");
+  clearDraft();
+  addBartender("", "", false);
+  addBartender("", "", false);
 }
 
-addBartender(); addBartender();
+enforceMoneyInput($("pot"));
+$("pot").addEventListener("input", saveDraft);
+$("notes").addEventListener("input", saveDraft);
+$("pot").addEventListener("input", markUncalculated);
+$("eventBody").addEventListener("input", saveDraft);
+$("peopleBody").addEventListener("input", saveDraft);
+$("eventBody").addEventListener("input", markUncalculated);
+$("peopleBody").addEventListener("input", markUncalculated);
+
+if (!restoreDraft()) {
+  addBartender("", "", false);
+  addBartender("", "", false);
+}
+
+initNameSuggestions();
+
+$("resultsCard").style.display = "block";
+$("resultsEmpty").style.display = "block";
+setCanSendReceipt(false);
 
 $("addEvent").onclick = () => addEventStaff();
 $("addBartender").onclick = () => addBartender();
 $("reset").onclick = hardReset;
+$("sendReceipt").onclick = sendReceipt;
 
 $("calc").onclick = () => {
   $("resultsBody").innerHTML = "";
-  $("resultsCard").style.display = "none";
+  $("resultsCard").style.display = "block";
+  $("resultsEmpty").style.display = "none";
+  latestReceipt = null;
+  setCanSendReceipt(false);
+  setStatus("");
 
-  const pot = Math.floor(+$("pot").value || 0);
+  const pot = getPotNumber();
   if (pot <= 0) return;
 
+  let hasInvalidName = false;
   const eventStaff = [...$("eventBody").querySelectorAll("input")]
-    .map((i, idx) => (i.value || "").trim() || `Event Staff ${idx+1}`);
+    .map((i, idx) => {
+      const cleaned = normalizeName(i.value || "");
+      i.value = cleaned;
+      if (cleaned && !isValidTypedName(cleaned)) {
+        hasInvalidName = true;
+      }
+      return cleaned || `Event Staff ${idx+1}`;
+    });
 
   const bartenders = [...$("peopleBody").querySelectorAll("tr")]
     .map((tr, idx) => {
       const i = tr.querySelectorAll("input");
-      return { name: (i[0].value || "").trim() || `Bartender ${idx+1}`, hours: +i[1].value || 0 };
+      const cleanedName = normalizeName(i[0].value || "");
+      i[0].value = cleanedName;
+      if (cleanedName && !isValidTypedName(cleanedName)) {
+        hasInvalidName = true;
+      }
+      return { name: cleanedName || `Bartender ${idx+1}`, hours: +i[1].value || 0 };
     })
     .filter(b => b.hours > 0);
+
+  if (hasInvalidName) {
+    setStatus("Names must contain at least 2 letters.", "error");
+    return;
+  }
 
   if (!bartenders.length) return;
 
@@ -214,6 +691,7 @@ $("calc").onclick = () => {
   const baseRate = Math.round(baseRateRaw * 100) / 100;
 
   const body = $("resultsBody");
+  const entries = [];
 
   // Event Staff rows
   eventStaff.forEach(name => {
@@ -224,6 +702,14 @@ $("calc").onclick = () => {
       <td class="right"><b>${moneyWhole(eventEach)}</b></td>
     `;
     body.appendChild(tr);
+
+    entries.push({
+      role: "Event Staff",
+      name,
+      hours: null,
+      rate: null,
+      tipout: Math.floor(eventEach)
+    });
   });
 
   // Bartender rows (tipout uses rounded baseRate)
@@ -236,9 +722,30 @@ $("calc").onclick = () => {
       <td class="right"><b>${moneyWhole(tipout)}</b></td>
     `;
     body.appendChild(tr);
+
+    entries.push({
+      role: "Bartender",
+      name: b.name,
+      hours: b.hours,
+      rate: baseRate,
+      tipout
+    });
   });
 
+  latestReceipt = {
+    totalPot: pot,
+    eventStaffCount: eventStaff.length,
+    bartenderCount: bartenders.length,
+    remainingForBartenders: remaining,
+    bartenderRate: baseRate,
+    entries
+  };
+
   $("resultsCard").style.display = "block";
+  $("resultsEmpty").style.display = "none";
+  setCanSendReceipt(true);
+  saveDraft();
+  setStatus("Calculated. Click Send Receipt to save/send this payout.", "success");
 };
 </script>
 
