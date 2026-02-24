@@ -35,7 +35,7 @@
       background-position:center;
       background-repeat:no-repeat;
       opacity:0;
-      transition:opacity var(--motion-panel) var(--motion-soft);
+      transition:opacity 1100ms var(--motion-soft);
       pointer-events:none;
       z-index:0;
     }
@@ -87,6 +87,7 @@
       padding-left:58px;
       min-width:210px;
     }
+    .venue-select-wrap.ui-fade{ transition:opacity 1000ms var(--motion-soft), transform 1000ms var(--motion-soft); }
     .venue-prefix{
       position:absolute;
       left:14px;
@@ -517,6 +518,7 @@
     button.primary:disabled{ background:#9ca3af; border-color:#9ca3af; }
     button.reset{ background:#eef0f3; }
     .venue-picker{ margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fafafa; }
+    .venue-picker.ui-fade{ transition:opacity 1000ms var(--motion-soft), transform 1000ms var(--motion-soft); }
     .venue-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
     .venue-actions button{ padding:10px 14px; font-size:14px; }
     .venue-actions .cancel{ background:#eef0f3; }
@@ -983,6 +985,8 @@ let statusFadeTimer = null;
 let statusClearTimer = null;
 let activeVenueBgLayer = "a";
 const VISIBILITY_TRANSITION_MS = 280;
+const VENUE_SELECT_TRANSITION_MS = 1000;
+const VENUE_PICKER_TRANSITION_MS = 1000;
 const MIN_LOADING_VISIBLE_MS = 520;
 const visibilityTimers = new WeakMap();
 const loadingStateMap = new WeakMap();
@@ -991,7 +995,7 @@ function scrollToTop(){
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
-function setElementVisible(el, visible, displayValue = "block"){
+function setElementVisible(el, visible, displayValue = "block", durationMs = VISIBILITY_TRANSITION_MS){
   if (!el) return;
 
   const existingTimer = visibilityTimers.get(el);
@@ -1018,7 +1022,7 @@ function setElementVisible(el, visible, displayValue = "block"){
       el.style.display = "none";
     }
     visibilityTimers.delete(el);
-  }, VISIBILITY_TRANSITION_MS);
+  }, durationMs);
   visibilityTimers.set(el, timer);
 }
 
@@ -1074,10 +1078,10 @@ function setVenueBadge(text){
   const value = String(text || "").trim();
   if (!value) {
     select.value = "";
-    setElementVisible(wrap, false, "inline-flex");
+    setElementVisible(wrap, false, "inline-flex", VENUE_SELECT_TRANSITION_MS);
     return;
   }
-  setElementVisible(wrap, true, "inline-flex");
+  setElementVisible(wrap, true, "inline-flex", VENUE_SELECT_TRANSITION_MS);
 
   if (value === "Venue: Detecting..." || value === "Venue: Not selected" || value === "Venue: Not detected") {
     select.value = "";
@@ -2113,7 +2117,7 @@ function hideVenuePicker(){
   const picker = $("venuePicker");
   const buttons = $("venueButtons");
   buttons.innerHTML = "";
-  setElementVisible(picker, false);
+  setElementVisible(picker, false, "block", VENUE_PICKER_TRANSITION_MS);
 }
 
 function pickVenue(){
@@ -2143,7 +2147,7 @@ function pickVenue(){
     };
     buttons.appendChild(cancel);
 
-    setElementVisible(picker, true);
+    setElementVisible(picker, true, "block", VENUE_PICKER_TRANSITION_MS);
   });
 }
 
