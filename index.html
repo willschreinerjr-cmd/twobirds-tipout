@@ -303,17 +303,18 @@
         grid-template-columns:repeat(2, minmax(0, 1fr));
         gap:8px;
       }
-      .pin-key{
+      .pin-key[data-digit]{
         background:#eaf3ff;
         border-color:#bfdbfe;
         color:#1e3a8a;
       }
-      .pin-key:hover{
+      .pin-key[data-digit]:hover{
         background:#dbeafe;
       }
       .pin-key.action{
-        background:#eff6ff;
-        color:#1d4ed8;
+        background:#f4f5f7;
+        border-color:var(--border);
+        color:#1f2937;
       }
       .pin-venue-option{ min-height:110px; }
       .pin-venue-photo{ height:110px; }
