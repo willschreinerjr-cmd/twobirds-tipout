@@ -16,24 +16,37 @@
     :root{
       --bg:#f6f7f9; --card:#fff; --border:#e5e7eb; --text:#111827; --muted:#6b7280;
       --green:#1f9d55; --green-dark:#178a48;
+      --motion-fast:180ms;
+      --motion-panel:320ms;
+      --motion-scene:780ms;
+      --motion-slow:1000ms;
+      --motion-ease:cubic-bezier(.22,.61,.36,1);
+      --motion-soft:cubic-bezier(.2,.7,.2,1);
     }
     *{ box-sizing:border-box; }
+    *{ -webkit-tap-highlight-color:transparent; }
     body{ margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
-    body::before{
+    body::before,
+    body::after{
       content:"";
       position:fixed;
       inset:0;
-      background-image:var(--venue-bg-image, none);
       background-size:cover;
       background-position:center;
       background-repeat:no-repeat;
       opacity:0;
-      transition:opacity .25s ease;
+      transition:opacity var(--motion-panel) var(--motion-soft);
       pointer-events:none;
       z-index:0;
     }
-    body.has-venue-bg::before{ opacity:0.25; }
-    .app{ max-width:1200px; margin:0 auto; padding:24px 20px; position:relative; z-index:1; }
+    body::before{ background-image:var(--venue-bg-image-a, none); }
+    body::after{ background-image:var(--venue-bg-image-b, none); }
+    body.has-venue-bg.bg-layer-a-active::before{ opacity:0.25; }
+    body.has-venue-bg.bg-layer-a-active::after{ opacity:0; }
+    body.has-venue-bg.bg-layer-b-active::before{ opacity:0; }
+    body.has-venue-bg.bg-layer-b-active::after{ opacity:0.25; }
+    .app{ max-width:1200px; margin:0 auto; padding:24px 20px; position:relative; z-index:1; opacity:1; transform:translateY(0); transition:opacity var(--motion-scene) var(--motion-soft), transform var(--motion-scene) var(--motion-soft); }
+    body.pin-gate-active .app{ opacity:0; transform:translateY(12px); }
 
     header{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
     .brand{ display:flex; align-items:center; gap:14px; }
@@ -129,14 +142,18 @@
       inset:0;
       z-index:10000;
       background:#f6f7f9;
-      display:flex;
+      display:grid;
       align-items:center;
       justify-content:center;
       padding:20px;
       overflow-y:auto;
       -webkit-overflow-scrolling:touch;
+      opacity:1;
+      transition:opacity var(--motion-scene) var(--motion-soft);
     }
+    .pin-gate.is-leaving{ opacity:0; pointer-events:none; }
     .pin-gate-card{
+      grid-area:1 / 1;
       width:100%;
       max-width:560px;
       background:#fff;
@@ -145,13 +162,25 @@
       padding:28px;
       box-shadow:0 16px 40px rgba(0,0,0,0.08);
       text-align:center;
+      max-height:calc(100vh - 40px);
       max-height:calc(100dvh - 40px);
-      overflow-y:auto;
+      position:relative;
+      opacity:1;
+      transform:translateY(0);
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      will-change:opacity, transform;
+    }
+    .pin-gate-card.is-hidden{
+      opacity:0;
+      transform:translateY(10px);
+      pointer-events:none;
+      visibility:hidden;
     }
     .pin-gate-logo-row{
       display:flex;
       justify-content:center;
       margin-bottom:12px;
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
     }
     .pin-gate-logo{
       height:52px;
@@ -164,24 +193,32 @@
       font-size:34px;
       font-weight:900;
       letter-spacing:-0.6px;
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      transition-delay:40ms;
     }
     .pin-gate-subtitle{
       margin:10px 0 18px;
       color:var(--muted);
       font-size:16px;
       font-weight:600;
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      transition-delay:80ms;
     }
     .pin-gate-greeting{
       margin:8px 0 4px;
       color:#1f2937;
       font-size:17px;
       font-weight:700;
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      transition-delay:120ms;
     }
     .pin-display{
       display:flex;
       justify-content:center;
       gap:10px;
       margin:2px 0 16px;
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      transition-delay:120ms;
     }
     .pin-dot{
       width:16px;
@@ -200,6 +237,9 @@
       gap:10px;
       max-width:300px;
       margin:0 auto;
+      position:relative;
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      transition-delay:140ms;
     }
     .pin-key{
       min-height:52px;
@@ -226,7 +266,19 @@
       color:#b91c1c;
       font-weight:700;
       font-size:14px;
+      opacity:1;
+      transition:opacity var(--motion-panel) var(--motion-ease);
     }
+    .pin-gate-card.entering .pin-gate-logo-row,
+    .pin-gate-card.entering .pin-gate-title,
+    .pin-gate-card.entering .pin-gate-subtitle,
+    .pin-gate-card.entering .pin-gate-greeting,
+    .pin-gate-card.entering .pin-display,
+    .pin-gate-card.entering .pin-keypad{
+      opacity:0;
+      transform:translateY(10px);
+    }
+    .pin-gate-error.fade-out{ opacity:0; }
     .pin-venue-buttons{
       display:grid;
       grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -263,7 +315,7 @@
       min-height:150px;
       padding:0;
       cursor:pointer;
-      transition:transform .15s ease, box-shadow .15s ease;
+      transition:transform var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
       box-shadow:0 6px 18px rgba(0,0,0,0.08);
     }
     .pin-venue-option:hover{
@@ -272,6 +324,11 @@
     }
     .pin-venue-option:active{
       transform:translateY(0);
+    }
+    .pin-venue-option:disabled{
+      cursor:default;
+      pointer-events:none;
+      opacity:0.9;
     }
     .pin-venue-option::after{
       content:"";
@@ -312,6 +369,7 @@
       .pin-gate-card{
         padding:18px;
         border-radius:18px;
+        max-height:calc(100vh - 20px);
         max-height:calc(100dvh - 20px);
       }
       .pin-venue-buttons{
@@ -334,6 +392,12 @@
       .pin-venue-option{ min-height:110px; }
       .pin-venue-photo{ height:110px; }
       .pin-venue-name{ font-size:18px; padding:10px 8px; }
+      button:hover,
+      .pin-venue-option:hover,
+      .name-suggestion-item:hover{
+        transform:none;
+        box-shadow:none;
+      }
     }
 
     .card{
@@ -345,7 +409,7 @@
       border-color:#dfe3e8;
     }
     label{ display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
-    input{ width:100%; padding:14px 16px; font-size:18px; border-radius:14px; border:1px solid var(--border); outline:none; }
+    input{ width:100%; padding:14px 16px; font-size:18px; border-radius:14px; border:1px solid var(--border); outline:none; transition:border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
     input:focus{ border-color:var(--green); }
     .staff-role{
       width:100%;
@@ -357,6 +421,7 @@
       background:#fff;
       color:#1f2937;
       outline:none;
+      transition:border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease);
     }
     .staff-role:focus{ border-color:var(--green); }
     .staff-row[data-role="Event Staff"] .staff-role{
@@ -382,7 +447,7 @@
       color:#9ca3af;
       cursor:not-allowed;
     }
-    textarea{ width:100%; padding:12px 14px; font-size:15px; border-radius:14px; border:1px solid var(--border); outline:none; resize:vertical; min-height:84px; font-family:inherit; }
+    textarea{ width:100%; padding:12px 14px; font-size:15px; border-radius:14px; border:1px solid var(--border); outline:none; resize:vertical; min-height:84px; font-family:inherit; transition:border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
     textarea:focus{ border-color:var(--green); }
 
     .row{ display:flex; gap:14px; flex-wrap:wrap; align-items:end; }
@@ -390,9 +455,10 @@
     .actions{ gap:12px; }
     .actions button{ min-height:48px; }
 
-    .status{ font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; }
+    .status{ font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; opacity:1; transition:opacity var(--motion-panel) var(--motion-ease); }
     .status.success{ color:var(--green-dark); }
     .status.error{ color:#b91c1c; }
+    .status.fade-out{ opacity:0; }
     .send-loading{
       display:none;
       width:100%;
@@ -410,6 +476,17 @@
       animation:sendLoad 1s ease-in-out infinite;
       transform:translateX(-100%);
     }
+    .ui-fade{
+      opacity:1;
+      transform:translateY(0);
+      transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
+      will-change:opacity, transform;
+    }
+    .ui-fade.is-hidden{
+      opacity:0;
+      transform:translateY(8px);
+      pointer-events:none;
+    }
     @keyframes sendLoad{
       0%{ transform:translateX(-100%); }
       100%{ transform:translateX(250%); }
@@ -418,10 +495,16 @@
     button{
       padding:14px 18px; font-size:16px; border-radius:14px; border:1px solid var(--border);
       background:#f4f5f7; color:#1f2937; cursor:pointer; font-weight:700;
-      transition:background-color .15s ease, border-color .15s ease, transform .08s ease;
+      transition:background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+      touch-action:manipulation;
     }
     button:hover{ background:#eef0f3; }
-    button:active{ transform:translateY(1px); }
+    button:active{ transform:translateY(1px) scale(0.995); }
+    button:focus-visible{
+      outline:none;
+      box-shadow:0 0 0 3px rgba(31,157,85,0.22);
+      border-color:var(--green);
+    }
     button.primary{ background:var(--green); color:#fff; border-color:var(--green); }
     button.primary:hover{ background:var(--green-dark); }
     button:disabled{ opacity:.55; cursor:not-allowed; }
@@ -491,7 +574,7 @@
       box-shadow:0 10px 24px rgba(0,0,0,0.25);
       opacity:0;
       pointer-events:none;
-      transition:opacity .18s ease, transform .18s ease;
+      transition:opacity var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
       z-index:20000;
       white-space:nowrap;
     }
@@ -587,10 +670,23 @@
         padding-left:0;
       }
     }
+
+    @media (prefers-reduced-motion: reduce){
+      *, *::before, *::after{
+        animation-duration:0.01ms !important;
+        animation-iteration-count:1 !important;
+        transition-duration:0.01ms !important;
+        scroll-behavior:auto !important;
+      }
+      .app,
+      .pin-gate-card,
+      .ui-fade,
+      .toast{ transform:none !important; }
+    }
   </style>
 </head>
 
-<body>
+<body class="pin-gate-active">
   <div id="pinGate" class="pin-gate">
     <div id="managerPinCard" class="pin-gate-card">
       <div class="pin-gate-logo-row">
@@ -621,14 +717,14 @@
       <div id="managerPinError" class="pin-gate-error"></div>
     </div>
 
-    <div id="venueGateCard" class="pin-gate-card" style="display:none;">
+    <div id="venueGateCard" class="pin-gate-card is-hidden">
       <div class="pin-gate-logo-row">
         <img class="pin-gate-logo" src="TwoBirdsLogo_Lockup_Black.webp" alt="TwoBirds Event Group">
       </div>
       <h2 class="pin-gate-title">Select Venue</h2>
-      <p id="venueGateGreeting" class="pin-gate-greeting" style="display:none;"></p>
+      <p id="venueGateGreeting" class="pin-gate-greeting ui-fade is-hidden" style="display:none;"></p>
       <p id="venueGateSubtitle" class="pin-gate-subtitle">Detecting your location...</p>
-      <div id="venueGateLoading" class="venue-gate-loading">
+      <div id="venueGateLoading" class="venue-gate-loading ui-fade is-hidden" style="display:none;">
         <div class="venue-gate-loading-bar"></div>
       </div>
       <div id="venueGateButtons" class="pin-venue-buttons"></div>
@@ -648,8 +744,8 @@
         </div>
       </div>
       <div class="header-meta">
-        <div id="managerWelcome" class="manager-welcome"></div>
-        <div id="venueSelectWrap" class="venue-select-wrap">
+        <div id="managerWelcome" class="manager-welcome ui-fade is-hidden"></div>
+        <div id="venueSelectWrap" class="venue-select-wrap ui-fade is-hidden">
           <span class="venue-prefix">Venue:</span>
           <select id="venueSelect" class="venue-select"></select>
         </div>
@@ -683,12 +779,12 @@
         <button id="calc" class="primary">Calculate &amp; Send Receipt</button>
         <button id="reset" class="reset">Reset</button>
       </div>
-      <div id="venuePicker" class="venue-picker" style="display:none;">
+      <div id="venuePicker" class="venue-picker ui-fade is-hidden" style="display:none;">
         <label style="margin-bottom:8px;">Select Venue</label>
         <div id="venueButtons" class="venue-actions"></div>
       </div>
       <div id="sendStatus" class="status"></div>
-      <div id="sendLoading" class="send-loading"><div class="send-loading-bar"></div></div>
+      <div id="sendLoading" class="send-loading ui-fade is-hidden"><div class="send-loading-bar"></div></div>
     </div>
 
     <div class="card">
@@ -706,7 +802,7 @@
     </div>
 
     <div class="card results-card" id="resultsCard" style="display:none;">
-      <div id="resultsEmpty" class="results-empty">Add staff rows, then click Calculate to preview tipouts.</div>
+      <div id="resultsEmpty" class="results-empty ui-fade">Add staff rows, then click Calculate to preview tipouts.</div>
       <table>
         <thead>
           <tr>
@@ -854,9 +950,80 @@ let detectedVenueReason = "";
 let authenticatedManagerName = "";
 let sendingReceipt = false;
 let toastTimer = null;
+let statusFadeTimer = null;
+let statusClearTimer = null;
+let activeVenueBgLayer = "a";
+const VISIBILITY_TRANSITION_MS = 280;
+const MIN_LOADING_VISIBLE_MS = 520;
+const visibilityTimers = new WeakMap();
+const loadingStateMap = new WeakMap();
 
 function scrollToTop(){
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
+function setElementVisible(el, visible, displayValue = "block"){
+  if (!el) return;
+
+  const existingTimer = visibilityTimers.get(el);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    visibilityTimers.delete(el);
+  }
+
+  if (visible) {
+    if (el.style.display === "none") {
+      el.style.display = displayValue;
+    } else if (!el.style.display) {
+      el.style.display = displayValue;
+    }
+    requestAnimationFrame(() => {
+      el.classList.remove("is-hidden");
+    });
+    return;
+  }
+
+  el.classList.add("is-hidden");
+  const timer = setTimeout(() => {
+    if (el.classList.contains("is-hidden")) {
+      el.style.display = "none";
+    }
+    visibilityTimers.delete(el);
+  }, VISIBILITY_TRANSITION_MS);
+  visibilityTimers.set(el, timer);
+}
+
+function setLoadingVisibleWithMinimum(el, isLoading, displayValue = "block"){
+  if (!el) return;
+
+  let state = loadingStateMap.get(el);
+  if (!state) {
+    state = { shownAt: 0, hideTimer: null };
+    loadingStateMap.set(el, state);
+  }
+
+  if (state.hideTimer) {
+    clearTimeout(state.hideTimer);
+    state.hideTimer = null;
+  }
+
+  if (isLoading) {
+    state.shownAt = Date.now();
+    setElementVisible(el, true, displayValue);
+    return;
+  }
+
+  const elapsed = Date.now() - state.shownAt;
+  const waitMs = Math.max(0, MIN_LOADING_VISIBLE_MS - elapsed);
+  if (waitMs <= 0) {
+    setElementVisible(el, false, displayValue);
+    return;
+  }
+
+  state.hideTimer = setTimeout(() => {
+    setElementVisible(el, false, displayValue);
+    state.hideTimer = null;
+  }, waitMs);
 }
 
 function setManagerWelcome(name){
@@ -864,11 +1031,11 @@ function setManagerWelcome(name){
   if (!badge) return;
   if (!name) {
     badge.textContent = "";
-    badge.style.display = "none";
+    setElementVisible(badge, false, "inline-flex");
     return;
   }
   badge.textContent = `Signed in as ${name}`;
-  badge.style.display = "inline-flex";
+  setElementVisible(badge, true, "inline-flex");
 }
 
 function setVenueBadge(text){
@@ -878,10 +1045,10 @@ function setVenueBadge(text){
   const value = String(text || "").trim();
   if (!value) {
     select.value = "";
-    wrap.style.display = "none";
+    setElementVisible(wrap, false, "inline-flex");
     return;
   }
-  wrap.style.display = "inline-flex";
+  setElementVisible(wrap, true, "inline-flex");
 
   if (value === "Venue: Detecting..." || value === "Venue: Not selected" || value === "Venue: Not detected") {
     select.value = "";
@@ -968,6 +1135,33 @@ function setImageSourceWithFallback(img, candidates, onSuccess, onFailure){
   tryNext();
 }
 
+function clearVenueBackground(){
+  document.body.classList.remove("has-venue-bg", "bg-layer-a-active", "bg-layer-b-active");
+  document.body.style.removeProperty("--venue-bg-image-a");
+  document.body.style.removeProperty("--venue-bg-image-b");
+  activeVenueBgLayer = "a";
+}
+
+function setVenueBackgroundWithFade(src){
+  const cleanSrc = String(src || "").trim();
+  if (!cleanSrc) {
+    clearVenueBackground();
+    return;
+  }
+
+  const targetLayer = activeVenueBgLayer === "a" ? "b" : "a";
+  if (targetLayer === "a") {
+    document.body.style.setProperty("--venue-bg-image-a", `url("${cleanSrc}")`);
+    document.body.classList.remove("bg-layer-b-active");
+    document.body.classList.add("has-venue-bg", "bg-layer-a-active");
+  } else {
+    document.body.style.setProperty("--venue-bg-image-b", `url("${cleanSrc}")`);
+    document.body.classList.remove("bg-layer-a-active");
+    document.body.classList.add("has-venue-bg", "bg-layer-b-active");
+  }
+  activeVenueBgLayer = targetLayer;
+}
+
 function setVenuePhoto(venue){
   const card = $("venuePhotoCard");
   const img = $("venuePhoto");
@@ -979,8 +1173,7 @@ function setVenuePhoto(venue){
     img.removeAttribute("src");
     label.textContent = "";
     card.style.display = "none";
-    document.body.classList.remove("has-venue-bg");
-    document.body.style.removeProperty("--venue-bg-image");
+    clearVenueBackground();
     return;
   }
 
@@ -989,8 +1182,7 @@ function setVenuePhoto(venue){
     img.removeAttribute("src");
     label.textContent = `Current Venue: ${venueName}`;
     card.style.display = "none";
-    document.body.classList.remove("has-venue-bg");
-    document.body.style.removeProperty("--venue-bg-image");
+    clearVenueBackground();
     return;
   }
 
@@ -999,39 +1191,67 @@ function setVenuePhoto(venue){
     photoCandidates,
     src => {
       card.style.display = "none";
-      document.body.style.setProperty("--venue-bg-image", `url(\"${src}\")`);
-      document.body.classList.add("has-venue-bg");
+      setVenueBackgroundWithFade(src);
     },
     () => {
       card.style.display = "none";
-      document.body.classList.remove("has-venue-bg");
-      document.body.style.removeProperty("--venue-bg-image");
+      clearVenueBackground();
     }
   );
   img.alt = `${venueName} venue photo`;
   label.textContent = `Current Venue: ${venueName}`;
 }
 
-function showManagerPinCard(){
+function setGateCardVisible(targetCardId, animate = true){
   const pinCard = $("managerPinCard");
   const venueCard = $("venueGateCard");
-  if (pinCard) pinCard.style.display = "block";
-  if (venueCard) venueCard.style.display = "none";
+  if (!pinCard || !venueCard) return;
+
+  const showCard = targetCardId === "venue" ? venueCard : pinCard;
+  const hideCard = showCard === pinCard ? venueCard : pinCard;
+
+  pinCard.style.display = "block";
+  venueCard.style.display = "block";
+
+  if (!animate) {
+    showCard.classList.remove("entering");
+    hideCard.classList.remove("entering");
+    showCard.classList.remove("is-hidden");
+    hideCard.classList.add("is-hidden");
+    return;
+  }
+
+  showCard.classList.add("entering");
+  showCard.classList.remove("is-hidden");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      showCard.classList.remove("entering");
+      hideCard.classList.add("is-hidden");
+    });
+  });
 }
 
-function showVenueGateCard(subtitle = "Select your venue to continue."){
-  const pinCard = $("managerPinCard");
-  const venueCard = $("venueGateCard");
+function showManagerPinCard(animate = true){
+  const gate = $("pinGate");
+  if (gate) {
+    gate.style.display = "grid";
+    gate.classList.remove("is-leaving");
+    gate.removeAttribute("aria-hidden");
+  }
+  document.body.classList.add("pin-gate-active");
+  setGateCardVisible("pin", animate);
+}
+
+function showVenueGateCard(subtitle = "Select your venue to continue.", animate = true){
   const subtitleEl = $("venueGateSubtitle");
-  if (pinCard) pinCard.style.display = "none";
-  if (venueCard) venueCard.style.display = "block";
+  setGateCardVisible("venue", animate);
   if (subtitleEl) subtitleEl.textContent = subtitle;
 }
 
 function setVenueGateLoading(isLoading){
   const loading = $("venueGateLoading");
   if (!loading) return;
-  loading.style.display = isLoading ? "block" : "none";
+  setLoadingVisibleWithMinimum(loading, isLoading);
 }
 
 function setVenueGateGreeting(name){
@@ -1040,11 +1260,11 @@ function setVenueGateGreeting(name){
   const cleanName = String(name || "").trim();
   if (!cleanName) {
     greeting.textContent = "";
-    greeting.style.display = "none";
+    setElementVisible(greeting, false);
     return;
   }
   greeting.textContent = `Hey ${cleanName}!`;
-  greeting.style.display = "block";
+  setElementVisible(greeting, true);
 }
 
 function renderVenueGateButtons(){
@@ -1079,7 +1299,12 @@ function renderVenueGateButtons(){
       );
     }
 
-    btn.onclick = () => {
+    btn.onclick = async () => {
+      const allButtons = [...wrap.querySelectorAll("button.pin-venue-option")];
+      allButtons.forEach(button => {
+        button.disabled = true;
+      });
+
       detectedVenue = venue;
       detectedVenueReason = "";
       setVenueBadge(`Venue: ${detectedVenue}`);
@@ -1092,7 +1317,11 @@ function renderVenueGateButtons(){
 
 function unlockAppForManager(name){
   const gate = $("pinGate");
-  if (gate) gate.style.display = "none";
+  if (gate) {
+    gate.classList.add("is-leaving");
+    gate.setAttribute("aria-hidden", "true");
+  }
+  document.body.classList.remove("pin-gate-active");
   document.body.style.overflow = "";
   scrollToTop();
   requestAnimationFrame(scrollToTop);
@@ -1100,6 +1329,12 @@ function unlockAppForManager(name){
   try {
     sessionStorage.setItem(MANAGER_PIN_KEY, name);
   } catch {}
+  setTimeout(() => {
+    if (!gate) return;
+    gate.style.display = "none";
+    gate.classList.remove("is-leaving");
+    gate.removeAttribute("aria-hidden");
+  }, 820);
 }
 
 async function startPostPinVenueFlow(name){
@@ -1147,9 +1382,35 @@ function initManagerGate(){
 
   let pinValue = "";
   let unlocking = false;
+  let pinErrorFadeTimer = null;
+  let pinErrorClearTimer = null;
 
-  const clearError = () => { errorEl.textContent = ""; };
-  const showError = msg => { errorEl.textContent = msg; };
+  const clearError = () => {
+    if (pinErrorFadeTimer) {
+      clearTimeout(pinErrorFadeTimer);
+      pinErrorFadeTimer = null;
+    }
+    if (pinErrorClearTimer) {
+      clearTimeout(pinErrorClearTimer);
+      pinErrorClearTimer = null;
+    }
+    errorEl.classList.remove("fade-out");
+    errorEl.textContent = "";
+  };
+  const showError = (msg, autoHideMs = 3200) => {
+    clearError();
+    errorEl.textContent = String(msg || "").trim();
+    if (!errorEl.textContent || autoHideMs <= 0) return;
+
+    const fadeDurationMs = 350;
+    const fadeDelayMs = Math.max(0, autoHideMs - fadeDurationMs);
+    pinErrorFadeTimer = setTimeout(() => {
+      errorEl.classList.add("fade-out");
+    }, fadeDelayMs);
+    pinErrorClearTimer = setTimeout(() => {
+      clearError();
+    }, autoHideMs);
+  };
   const renderPin = () => {
     const dots = pinDisplay.querySelectorAll(".pin-dot");
     dots.forEach((dot, idx) => {
@@ -1212,7 +1473,7 @@ function initManagerGate(){
   document.addEventListener("keydown", e => {
     if (gate.style.display === "none") return;
     const pinCard = $("managerPinCard");
-    if (!pinCard || pinCard.style.display === "none") return;
+    if (!pinCard || pinCard.classList.contains("is-hidden")) return;
 
     if (/^\d$/.test(e.key)) {
       e.preventDefault();
@@ -1250,7 +1511,7 @@ function initManagerGate(){
     return;
   }
 
-  showManagerPinCard();
+  showManagerPinCard(false);
   renderPin();
   document.body.style.overflow = "hidden";
 }
@@ -1403,8 +1664,8 @@ function showToast(message){
 function markUncalculated(){
   latestReceipt = null;
   if ($("resultsBody").children.length === 0){
-    $("resultsCard").style.display = "block";
-    $("resultsEmpty").style.display = "block";
+    setElementVisible($("resultsCard"), true);
+    setElementVisible($("resultsEmpty"), true);
   }
 }
 
@@ -1784,23 +2045,46 @@ function todayLocalISO(){
   return new Date(d.getTime() - tzOffset).toISOString().slice(0,10);
 }
 
-function setStatus(msg, type=""){
+function setStatus(msg, type="", options = {}){
   const el = $("sendStatus");
+  if (statusFadeTimer) {
+    clearTimeout(statusFadeTimer);
+    statusFadeTimer = null;
+  }
+  if (statusClearTimer) {
+    clearTimeout(statusClearTimer);
+    statusClearTimer = null;
+  }
+  el.classList.remove("fade-out");
   el.textContent = msg;
   el.className = `status ${type}`.trim();
+
+  const autoHideMs = Number(
+    options?.autoHideMs ?? (type === "error" ? 3200 : 0)
+  );
+  if (!msg || autoHideMs <= 0) return;
+
+  const fadeDurationMs = 350;
+  const fadeDelayMs = Math.max(0, autoHideMs - fadeDurationMs);
+  statusFadeTimer = setTimeout(() => {
+    el.classList.add("fade-out");
+  }, fadeDelayMs);
+  statusClearTimer = setTimeout(() => {
+    setStatus("");
+  }, autoHideMs);
 }
 
 function setSendLoading(isLoading){
   const bar = $("sendLoading");
   if (!bar) return;
-  bar.style.display = isLoading ? "block" : "none";
+  setLoadingVisibleWithMinimum(bar, isLoading);
 }
 
 function hideVenuePicker(){
   const picker = $("venuePicker");
   const buttons = $("venueButtons");
   buttons.innerHTML = "";
-  picker.style.display = "none";
+  setElementVisible(picker, false);
 }
 
 function pickVenue(){
@@ -1830,7 +2114,7 @@ function pickVenue(){
     };
     buttons.appendChild(cancel);
 
-    picker.style.display = "block";
+    setElementVisible(picker, true);
   });
 }
 
@@ -1917,6 +2201,7 @@ async function detectVenueFromLocation(){
 
   let bestVenue = null;
   let bestDistance = Infinity;
+  let secondBestDistance = Infinity;
 
   for (const [venue, address] of entries) {
     try {
@@ -1929,8 +2214,11 @@ async function detectVenueFromLocation(){
       if (!point) continue;
       const d = distanceMeters(coords.latitude, coords.longitude, point.lat, point.lon);
       if (d < bestDistance) {
+        secondBestDistance = bestDistance;
         bestDistance = d;
         bestVenue = venue;
+      } else if (d < secondBestDistance) {
+        secondBestDistance = d;
       }
     } catch {}
   }
@@ -1941,7 +2229,7 @@ async function detectVenueFromLocation(){
       venue: bestVenue,
       reason: `Estimated from nearest venue (${Math.round(bestDistance)}m away)`,
       distanceMeters: bestDistance,
-      lowConfidence: true
+      lowConfidence: false
     };
   }
 
@@ -2010,7 +2298,8 @@ async function sendReceipt(){
     date: todayLocalISO(),
     venue,
     notes: ($("notes").value || "").trim(),
-    submittedAt: new Date().toISOString()
+    submittedAt: new Date().toISOString(),
+    managerName: String(authenticatedManagerName || "").trim()
   };
 
   if (!RECEIPT_ENDPOINT){
@@ -2047,8 +2336,8 @@ function hardReset(){
   $("notes").value = "";
   $("staffBody").innerHTML = "";
   $("resultsBody").innerHTML = "";
-  $("resultsCard").style.display = "block";
-  $("resultsEmpty").style.display = "block";
+  setElementVisible($("resultsCard"), true);
+  setElementVisible($("resultsEmpty"), true);
   latestReceipt = null;
   setSendLoading(false);
   setStatus("");
@@ -2083,8 +2372,8 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-$("resultsCard").style.display = "block";
-$("resultsEmpty").style.display = "block";
+setElementVisible($("resultsCard"), true);
+setElementVisible($("resultsEmpty"), true);
 
 $("addStaff").onclick = () => addStaff();
 $("reset").onclick = hardReset;
@@ -2093,13 +2382,13 @@ $("calc").onclick = () => {
   const missingMessage = getMissingCalculationMessage();
   if (missingMessage) {
     showToast(missingMessage);
-    setStatus(missingMessage, "error");
+    setStatus(missingMessage, "error", { autoHideMs: 3200 });
     return;
   }
 
   $("resultsBody").innerHTML = "";
-  $("resultsCard").style.display = "block";
-  $("resultsEmpty").style.display = "none";
+  setElementVisible($("resultsCard"), true);
+  setElementVisible($("resultsEmpty"), false);
   latestReceipt = null;
   setStatus("");
 
@@ -2206,8 +2495,8 @@ $("calc").onclick = () => {
     entries
   };
 
-  $("resultsCard").style.display = "block";
-  $("resultsEmpty").style.display = "none";
+  setElementVisible($("resultsCard"), true);
+  setElementVisible($("resultsEmpty"), false);
   saveDraft();
   setStatus("Calculated. Sending receipt...", "success");
   sendReceipt();
