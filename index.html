@@ -691,6 +691,37 @@ function initVenueSelect(){
   });
 }
 
+function getVenuePhotoCandidates(venueName){
+  const mapped = String(VENUE_PHOTO_BOOK[venueName] || "").trim();
+  if (!mapped) return [];
+
+  const normalized = mapped.replace(/^\.\//, "");
+  return [normalized];
+}
+
+function setImageSourceWithFallback(img, candidates, onSuccess, onFailure){
+  if (!img || !Array.isArray(candidates) || !candidates.length) {
+    if (typeof onFailure === "function") onFailure();
+    return;
+  }
+
+  let idx = 0;
+  const tryNext = () => {
+    if (idx >= candidates.length) {
+      if (typeof onFailure === "function") onFailure();
+      return;
+    }
+    const src = candidates[idx++];
+    img.onerror = tryNext;
+    img.onload = () => {
+      if (typeof onSuccess === "function") onSuccess(src);
+    };
+    img.src = src;
+  };
+
+  tryNext();
+}
+
 function setVenuePhoto(venue){
   const card = $("venuePhotoCard");
   const img = $("venuePhoto");
@@ -707,8 +738,8 @@ function setVenuePhoto(venue){
     return;
   }
 
-  const photoSrc = String(VENUE_PHOTO_BOOK[venueName] || "").trim();
-  if (!photoSrc) {
+  const photoCandidates = getVenuePhotoCandidates(venueName);
+  if (!photoCandidates.length) {
     img.removeAttribute("src");
     label.textContent = `Current Venue: ${venueName}`;
     card.style.display = "none";
@@ -717,17 +748,20 @@ function setVenuePhoto(venue){
     return;
   }
 
-  img.onerror = () => {
-    card.style.display = "none";
-    document.body.classList.remove("has-venue-bg");
-    document.body.style.removeProperty("--venue-bg-image");
-  };
-  img.onload = () => {
-    card.style.display = "none";
-    document.body.style.setProperty("--venue-bg-image", `url(\"${photoSrc}\")`);
-    document.body.classList.add("has-venue-bg");
-  };
-  img.src = photoSrc;
+  setImageSourceWithFallback(
+    img,
+    photoCandidates,
+    src => {
+      card.style.display = "none";
+      document.body.style.setProperty("--venue-bg-image", `url(\"${src}\")`);
+      document.body.classList.add("has-venue-bg");
+    },
+    () => {
+      card.style.display = "none";
+      document.body.classList.remove("has-venue-bg");
+      document.body.style.removeProperty("--venue-bg-image");
+    }
+  );
   img.alt = `${venueName} venue photo`;
   label.textContent = `Current Venue: ${venueName}`;
 }
@@ -761,22 +795,25 @@ function renderVenueGateButtons(){
 
   VENUES.forEach(venue => {
     const btn = document.createElement("button");
-    const photoSrc = String(VENUE_PHOTO_BOOK[venue] || "").trim();
+    const photoCandidates = getVenuePhotoCandidates(venue);
 
     btn.type = "button";
     btn.className = "pin-venue-option";
     btn.innerHTML = `
-      <img class="pin-venue-photo" src="${escapeHtml(photoSrc)}" alt="${escapeHtml(venue)} venue photo">
+      <img class="pin-venue-photo" alt="${escapeHtml(venue)} venue photo">
       <span class="pin-venue-name">${escapeHtml(venue)}</span>
     `;
 
     const img = btn.querySelector("img");
-    if (img && !photoSrc) {
+    if (img && !photoCandidates.length) {
       img.style.display = "none";
     } else if (img) {
-      img.onerror = () => {
-        img.style.display = "none";
-      };
+      setImageSourceWithFallback(
+        img,
+        photoCandidates,
+        () => { img.style.display = "block"; },
+        () => { img.style.display = "none"; }
+      );
     }
 
     btn.onclick = () => {
