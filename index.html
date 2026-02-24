@@ -1633,6 +1633,54 @@ function isValidTypedName(value){
   return letters.length >= 2;
 }
 
+function getMissingCalculationMessage(){
+  const missing = [];
+  const pushMissing = item => {
+    const text = String(item || "").trim();
+    if (!text || missing.includes(text)) return;
+    missing.push(text);
+  };
+
+  const pot = getPotNumber();
+  if (pot <= 0) pushMissing("tip pot");
+
+  const staffRows = getUnifiedStaffRows();
+  if (!staffRows.length) {
+    pushMissing("staff");
+  } else {
+    let hasMissingName = false;
+    let hasMissingHours = false;
+    let hasInvalidName = false;
+
+    staffRows.forEach((row, idx) => {
+      const role = ["Event Staff", "Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
+      const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
+
+      if (!cleanedName) {
+        hasMissingName = true;
+      } else if (!isValidTypedName(cleanedName)) {
+        hasInvalidName = true;
+      }
+
+      if (role !== "Event Staff") {
+        const hoursValue = +String(row.inputs[1]?.value || "").trim() || 0;
+        if (hoursValue <= 0) {
+          hasMissingHours = true;
+        }
+      }
+    });
+
+    if (hasMissingName) pushMissing("staff names");
+    if (hasInvalidName) pushMissing("valid staff names");
+    if (hasMissingHours) pushMissing("staff hours");
+
+    const hasPayoutRow = staffRows.some(row => row.role !== "Event Staff" && (+row.inputs[1]?.value || 0) > 0);
+    if (!hasPayoutRow) pushMissing("staff hours");
+  }
+
+  return missing.length ? `Missing: ${missing.join(" & ")}.` : "";
+}
+
 function getDraft(){
   const staff = getUnifiedStaffRows().map(row => ({
     role: row.role,
@@ -2008,6 +2056,13 @@ $("addStaff").onclick = () => addStaff();
 $("reset").onclick = hardReset;
 
 $("calc").onclick = () => {
+  const missingMessage = getMissingCalculationMessage();
+  if (missingMessage) {
+    showToast(missingMessage);
+    setStatus(missingMessage, "error");
+    return;
+  }
+
   $("resultsBody").innerHTML = "";
   $("resultsCard").style.display = "block";
   $("resultsEmpty").style.display = "none";
