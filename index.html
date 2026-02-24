@@ -45,7 +45,7 @@
     body.has-venue-bg.bg-layer-a-active::after{ opacity:0; }
     body.has-venue-bg.bg-layer-b-active::before{ opacity:0; }
     body.has-venue-bg.bg-layer-b-active::after{ opacity:0.25; }
-    .app{ max-width:1200px; margin:0 auto; padding:24px 20px; position:relative; z-index:1; opacity:1; transform:translateY(0); transition:opacity var(--motion-scene) var(--motion-soft), transform var(--motion-scene) var(--motion-soft); }
+    .app{ max-width:1200px; margin:0 auto; padding:24px 20px; position:relative; z-index:1; opacity:1; transform:translateY(0); transition:opacity var(--motion-scene) var(--motion-soft), transform var(--motion-scene) var(--motion-soft); -webkit-backface-visibility:hidden; backface-visibility:hidden; }
     body.pin-gate-active .app{ opacity:0; transform:translateY(12px); }
 
     header{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
@@ -150,6 +150,8 @@
       -webkit-overflow-scrolling:touch;
       opacity:1;
       transition:opacity var(--motion-scene) var(--motion-soft);
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
     .pin-gate.is-leaving{ opacity:0; pointer-events:none; }
     .pin-gate-card{
@@ -169,6 +171,8 @@
       transform:translateY(0);
       transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
       will-change:opacity, transform;
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
     .pin-gate-card.is-hidden{
       opacity:0;
@@ -481,6 +485,8 @@
       transform:translateY(0);
       transition:opacity var(--motion-panel) var(--motion-ease), transform var(--motion-panel) var(--motion-ease);
       will-change:opacity, transform;
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
     .ui-fade.is-hidden{
       opacity:0;
@@ -584,6 +590,11 @@
     }
 
     @media (max-width: 720px){
+      :root{
+        --motion-fast:220ms;
+        --motion-panel:380ms;
+        --motion-scene:920ms;
+      }
       .app{ padding:12px; }
       header{
         flex-direction:column;
@@ -668,6 +679,24 @@
       .results-card th:first-child,
       .results-card td:first-child{
         padding-left:0;
+      }
+    }
+
+    @media (hover: none){
+      button:active,
+      .pin-venue-option:active,
+      .name-suggestion-item:active{
+        transition-duration:120ms;
+      }
+      .pin-venue-option:active{
+        transform:scale(0.992);
+        box-shadow:0 8px 18px rgba(0,0,0,0.16);
+      }
+      button:active{
+        transform:translateY(1px) scale(0.992);
+      }
+      .name-suggestion-item:active{
+        background:#e8f1ff;
       }
     }
 
