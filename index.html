@@ -958,20 +958,8 @@ const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeB
 const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
 const DRAFT_KEY = "twobirds-tipout-draft-v1";
 const MANAGER_PIN_KEY = "twobirds-manager-auth-v1";
-const MANAGER_PINS = {
-  "1218": "Will Schreiner",
-  "0424": "Olivia Bartels",
-  "5097": "Ashley Brunette",
-  "8707": "Avery Diercks",
-  "0087": "Julianne Dollard",
-  "1212": "Renee Ehlers",
-  "2112": "Sal Gauthier",
-  "8167": "Jesse Hertzke",
-  "8121": "JJ Ingrassia",
-  "3805": "Alex Kerkman",
-  "5596": "Lacey Kremer",
-  "1290": "Ben McGill"
-};
+const MANAGER_TOKEN_KEY = "twobirds-manager-token-v1";
+const MANAGER_TOKEN_EXP_KEY = "twobirds-manager-token-exp-v1";
 let latestReceipt = null;
 let activeNameInput = null;
 let activeNameSuggestions = [];
@@ -980,6 +968,7 @@ const venueGeocodeCache = new Map();
 let detectedVenue = "";
 let detectedVenueReason = "";
 let authenticatedManagerName = "";
+let authenticatedManagerToken = "";
 let sendingReceipt = false;
 let toastTimer = null;
 let statusFadeTimer = null;
@@ -1376,6 +1365,7 @@ function unlockAppForManager(name){
   setManagerWelcome(name);
   try {
     sessionStorage.setItem(MANAGER_PIN_KEY, name);
+    sessionStorage.setItem(MANAGER_TOKEN_KEY, authenticatedManagerToken || "");
   } catch {}
   setTimeout(() => {
     if (!gate) return;
@@ -1500,7 +1490,7 @@ function initManagerGate(){
 
   deleteBtn.onclick = deleteDigit;
 
-  const tryUnlock = () => {
+  const tryUnlock = async () => {
     if (unlocking) return;
     const pin = String(pinValue || "").trim();
     if (pin.length !== 4) {
@@ -1508,15 +1498,24 @@ function initManagerGate(){
       return;
     }
 
-    const managerName = MANAGER_PINS[pin];
-    if (!managerName) {
-      showError("Invalid manager PIN.");
-      setPin("");
-      return;
-    }
-
     unlocking = true;
-    startPostPinVenueFlow(managerName);
+    try {
+      const auth = await authenticateManagerPin(pin);
+      authenticatedManagerName = auth.managerName;
+      authenticatedManagerToken = auth.authToken;
+      try {
+        sessionStorage.setItem(MANAGER_PIN_KEY, auth.managerName);
+        sessionStorage.setItem(MANAGER_TOKEN_KEY, auth.authToken);
+        sessionStorage.setItem(MANAGER_TOKEN_EXP_KEY, String(auth.expiresAt));
+      } catch {}
+      setPin("");
+      clearError();
+      startPostPinVenueFlow(auth.managerName);
+    } catch (err) {
+      showError(err && err.message ? err.message : "Invalid manager PIN.");
+      setPin("");
+      unlocking = false;
+    }
   };
   document.addEventListener("keydown", e => {
     if (gate.style.display === "none") return;
@@ -1549,19 +1548,41 @@ function initManagerGate(){
   });
 
   let existingManager = "";
+  let existingToken = "";
+  let existingTokenExp = 0;
   try {
     existingManager = sessionStorage.getItem(MANAGER_PIN_KEY) || "";
+    existingToken = sessionStorage.getItem(MANAGER_TOKEN_KEY) || "";
+    existingTokenExp = Number(sessionStorage.getItem(MANAGER_TOKEN_EXP_KEY) || 0);
   } catch {}
 
-  if (existingManager) {
+  const startFreshLogin = () => {
+    clearManagerSessionStorage();
+    showManagerPinCard(false);
+    renderPin();
+    document.body.style.overflow = "hidden";
+  };
+
+  const tryRestoreSession = async () => {
+    if (!existingManager || !existingToken || !Number.isFinite(existingTokenExp) || existingTokenExp <= Date.now()) {
+      startFreshLogin();
+      return;
+    }
+
+    const isValid = await validateManagerSession(existingManager, existingToken);
+    if (!isValid) {
+      startFreshLogin();
+      return;
+    }
+
+    authenticatedManagerName = existingManager;
+    authenticatedManagerToken = existingToken;
     document.body.style.overflow = "hidden";
     startPostPinVenueFlow(existingManager);
-    return;
-  }
+  };
 
-  showManagerPinCard(false);
-  renderPin();
-  document.body.style.overflow = "hidden";
+  tryRestoreSession();
+  return;
 }
 
 function escapeHtml(s){
@@ -2313,6 +2334,54 @@ async function postToAppsScript(endpoint, payload){
   return data;
 }
 
+async function authenticateManagerPin(pin){
+  const cleanPin = String(pin || "").replace(/\D+/g, "").slice(0, 4);
+  if (cleanPin.length !== 4) {
+    throw new Error("Enter a valid 4-digit PIN.");
+  }
+
+  const data = await postToAppsScript(RECEIPT_ENDPOINT, {
+    action: "authManagerPin",
+    pin: cleanPin
+  });
+
+  const managerName = String(data.managerName || "").trim();
+  const authToken = String(data.authToken || "").trim();
+  const expiresAt = Number(data.expiresAt || 0);
+  if (!managerName || !authToken || !Number.isFinite(expiresAt) || expiresAt <= 0) {
+    throw new Error("Authentication response was incomplete.");
+  }
+
+  return { managerName, authToken, expiresAt };
+}
+
+async function validateManagerSession(name, token){
+  const managerName = String(name || "").trim();
+  const authToken = String(token || "").trim();
+  if (!managerName || !authToken) return false;
+
+  try {
+    const data = await postToAppsScript(RECEIPT_ENDPOINT, {
+      action: "validateManagerSession",
+      managerName,
+      authToken
+    });
+    return !!data.valid;
+  } catch {
+    return false;
+  }
+}
+
+function clearManagerSessionStorage(){
+  authenticatedManagerName = "";
+  authenticatedManagerToken = "";
+  try {
+    sessionStorage.removeItem(MANAGER_PIN_KEY);
+    sessionStorage.removeItem(MANAGER_TOKEN_KEY);
+    sessionStorage.removeItem(MANAGER_TOKEN_EXP_KEY);
+  } catch {}
+}
+
 async function sendReceipt(){
   if (sendingReceipt) return;
   if (!latestReceipt){
@@ -2344,13 +2413,23 @@ async function sendReceipt(){
     return;
   }
 
+  const managerName = String(authenticatedManagerName || "").trim();
+  const authToken = String(authenticatedManagerToken || "").trim();
+  if (!managerName || !authToken) {
+    setStatus("Manager session expired. Please re-enter your PIN.", "error");
+    clearManagerSessionStorage();
+    showManagerPinCard(false);
+    return;
+  }
+
   const receipt = {
     ...latestReceipt,
     date: todayLocalISO(),
     venue,
     notes: ($("notes").value || "").trim(),
     submittedAt: new Date().toISOString(),
-    managerName: String(authenticatedManagerName || "").trim()
+    managerName,
+    authToken
   };
 
   if (!RECEIPT_ENDPOINT){
@@ -2375,6 +2454,10 @@ async function sendReceipt(){
     }
   } catch (err) {
     const msg = err && err.message ? err.message : "Send failed. Verify Apps Script deployment and access to the shared sheet.";
+    if (/session expired|invalid auth|unauthorized/i.test(msg)) {
+      clearManagerSessionStorage();
+      showManagerPinCard(false);
+    }
     setStatus(msg, "error");
   } finally {
     sendingReceipt = false;
