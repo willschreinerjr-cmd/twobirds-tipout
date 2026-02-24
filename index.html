@@ -331,6 +331,24 @@
       outline:none;
     }
     .staff-role:focus{ border-color:var(--green); }
+    .staff-row[data-role="Event Staff"] .staff-role{
+      background:#fafafa;
+      border-color:#9ca3af;
+      color:#4b5563;
+    }
+    .staff-row[data-role="Shift Manager"] .staff-role{
+      background:#f3f4f6;
+      border-color:var(--green);
+      color:#065f46;
+    }
+    .staff-row[data-role="Bartender"] .staff-role{
+      background:#fff;
+      border-color:#111827;
+      color:#111827;
+    }
+    .staff-row[data-role="Event Staff"] td:first-child{ box-shadow:inset 3px 0 0 #9ca3af; }
+    .staff-row[data-role="Shift Manager"] td:first-child{ box-shadow:inset 3px 0 0 var(--green-dark); }
+    .staff-row[data-role="Bartender"] td:first-child{ box-shadow:inset 3px 0 0 #111827; }
     .hours-input:disabled{
       background:#f3f4f6;
       color:#9ca3af;
@@ -1225,8 +1243,35 @@ function hasExistingShiftManager(excludeRow = null){
   });
 }
 
+function sortStaffRowsByRole(){
+  const body = $("staffBody");
+  if (!body) return;
+
+  const roleOrder = {
+    "Shift Manager": 0,
+    "Bartender": 1,
+    "Event Staff": 2
+  };
+
+  const rows = [...body.querySelectorAll("tr")];
+  rows
+    .map((tr, idx) => ({
+      tr,
+      idx,
+      role: String(tr.querySelector(".staff-role")?.value || "Bartender").trim()
+    }))
+    .sort((a, b) => {
+      const aOrder = roleOrder[a.role] ?? 99;
+      const bOrder = roleOrder[b.role] ?? 99;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.idx - b.idx;
+    })
+    .forEach(item => body.appendChild(item.tr));
+}
+
 function addStaff(role="Bartender", name="", hours="", focusName=true){
   const tr = document.createElement("tr");
+  tr.className = "staff-row";
   tr.innerHTML = `
     <td>
       <select class="staff-role">
@@ -1247,6 +1292,7 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
 
   const applyRoleBehavior = () => {
     const selectedRole = String(roleSelect.value || "");
+    tr.dataset.role = selectedRole;
     const isEvent = selectedRole === "Event Staff";
     if (isEvent) {
       hoursInput.value = "";
@@ -1274,6 +1320,7 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
 
     previousRole = roleSelect.value;
     applyRoleBehavior();
+    sortStaffRowsByRole();
     markUncalculated();
     saveDraft();
   });
@@ -1286,10 +1333,12 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
   enforceLettersOnly(nameInput);
   tr.querySelector("button").onclick = () => {
     tr.remove();
+    sortStaffRowsByRole();
     markUncalculated();
     saveDraft();
   };
   $("staffBody").appendChild(tr);
+  sortStaffRowsByRole();
   if (focusName) nameInput.focus();
   markUncalculated();
   saveDraft();
