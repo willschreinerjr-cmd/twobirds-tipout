@@ -235,6 +235,7 @@
       border:1px solid var(--border);
       border-radius:14px;
       background:#fff;
+      min-height:150px;
       padding:0;
       cursor:pointer;
       transition:transform .15s ease, box-shadow .15s ease;
@@ -822,13 +823,17 @@ function renderVenueGateButtons(){
 
     const img = btn.querySelector("img");
     if (img && !photoCandidates.length) {
-      img.style.display = "none";
+      img.removeAttribute("src");
+      img.style.display = "block";
     } else if (img) {
       setImageSourceWithFallback(
         img,
         photoCandidates,
         () => { img.style.display = "block"; },
-        () => { img.style.display = "none"; }
+        () => {
+          img.removeAttribute("src");
+          img.style.display = "block";
+        }
       );
     }
 
