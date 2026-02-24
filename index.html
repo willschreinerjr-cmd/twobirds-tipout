@@ -356,6 +356,7 @@
     button.primary:hover{ background:var(--green-dark); }
     button:disabled{ opacity:.55; cursor:not-allowed; }
     button.primary:disabled{ background:#9ca3af; border-color:#9ca3af; }
+    button.primary.pseudo-disabled{ background:#9ca3af; border-color:#9ca3af; cursor:not-allowed; }
     button.reset{ background:#eef0f3; }
     .venue-picker{ margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fafafa; }
     .venue-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
@@ -405,6 +406,29 @@
     .name-suggestion-item.active,
     .name-suggestion-item:hover{
       background:#eef6ff;
+    }
+
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:18px;
+      transform:translate(-50%, 12px);
+      background:#111827;
+      color:#fff;
+      font-size:13px;
+      font-weight:700;
+      padding:10px 14px;
+      border-radius:999px;
+      box-shadow:0 10px 24px rgba(0,0,0,0.25);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s ease, transform .18s ease;
+      z-index:20000;
+      white-space:nowrap;
+    }
+    .toast.show{
+      opacity:1;
+      transform:translate(-50%, 0);
     }
 
     @media (max-width: 720px){
@@ -643,6 +667,8 @@
 
   </div>
 
+  <div id="quickToast" class="toast" role="status" aria-live="polite"></div>
+
 <script>
 const $ = id => document.getElementById(id);
 
@@ -771,6 +797,7 @@ let detectedVenue = "";
 let detectedVenueReason = "";
 let authenticatedManagerName = "";
 let sendingReceipt = false;
+let toastTimer = null;
 
 function scrollToTop(){
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -1249,7 +1276,25 @@ function setShiftManagerRow(name="", hours=""){
 }
 
 function setCanSendReceipt(enabled){
-  $("sendReceipt").disabled = !enabled;
+  const btn = $("sendReceipt");
+  if (!btn) return;
+  const canSend = !!enabled;
+  btn.disabled = false;
+  btn.classList.toggle("pseudo-disabled", !canSend);
+  btn.setAttribute("aria-disabled", String(!canSend));
+}
+
+function showToast(message){
+  const toast = $("quickToast");
+  if (!toast) return;
+  toast.textContent = String(message || "").trim();
+  if (!toast.textContent) return;
+
+  toast.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1500);
 }
 
 function markUncalculated(){
@@ -1788,14 +1833,14 @@ async function postToAppsScript(endpoint, payload){
 
 async function sendReceipt(){
   if (sendingReceipt) return;
-  setStatus("");
-  setSendLoading(false);
-  hideVenuePicker();
-
   if (!latestReceipt){
+    showToast("Calculate first.");
     setStatus("Calculate first, then send the receipt.", "error");
     return;
   }
+  setStatus("");
+  setSendLoading(false);
+  hideVenuePicker();
 
   let venue = detectedVenue;
   if (!venue) {
