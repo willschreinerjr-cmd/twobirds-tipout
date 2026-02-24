@@ -1423,6 +1423,12 @@ function initManagerGate(){
   let pinErrorFadeTimer = null;
   let pinErrorClearTimer = null;
 
+  const setPinInputsDisabled = disabled => {
+    keypad.querySelectorAll("button").forEach(btn => {
+      btn.disabled = !!disabled;
+    });
+  };
+
   const clearError = () => {
     if (pinErrorFadeTimer) {
       clearTimeout(pinErrorFadeTimer);
@@ -1499,6 +1505,8 @@ function initManagerGate(){
     }
 
     unlocking = true;
+    setPinInputsDisabled(true);
+    showError("Verifying PIN...", 0);
     try {
       const auth = await authenticateManagerPin(pin);
       authenticatedManagerName = auth.managerName;
@@ -1515,6 +1523,7 @@ function initManagerGate(){
       showError(err && err.message ? err.message : "Invalid manager PIN.");
       setPin("");
       unlocking = false;
+      setPinInputsDisabled(false);
     }
   };
   document.addEventListener("keydown", e => {
@@ -2196,7 +2205,7 @@ function getCurrentPosition(options = {}){
 
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
-      timeout: 8000,
+      timeout: 4000,
       maximumAge: 60000,
       ...options
     });
