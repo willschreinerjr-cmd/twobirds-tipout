@@ -696,7 +696,21 @@ function getVenuePhotoCandidates(venueName){
   if (!mapped) return [];
 
   const normalized = mapped.replace(/^\.\//, "");
-  return [normalized];
+  const fileName = normalized.replace(/^\/+/, "");
+  const pathName = String(window.location.pathname || "/");
+  const basePath = pathName.endsWith("/")
+    ? pathName
+    : pathName.slice(0, pathName.lastIndexOf("/") + 1);
+  const parts = pathName.split("/").filter(Boolean);
+  const repoRoot = parts.length ? `/${parts[0]}/` : "/";
+
+  return Array.from(new Set([
+    fileName,
+    `./${fileName}`,
+    `${basePath}${fileName}`,
+    `${repoRoot}${fileName}`,
+    `/${fileName}`
+  ]));
 }
 
 function setImageSourceWithFallback(img, candidates, onSuccess, onFailure){
@@ -712,11 +726,13 @@ function setImageSourceWithFallback(img, candidates, onSuccess, onFailure){
       return;
     }
     const src = candidates[idx++];
-    img.onerror = tryNext;
-    img.onload = () => {
+    const probe = new Image();
+    probe.onload = () => {
+      img.src = src;
       if (typeof onSuccess === "function") onSuccess(src);
     };
-    img.src = src;
+    probe.onerror = tryNext;
+    probe.src = src;
   };
 
   tryNext();
