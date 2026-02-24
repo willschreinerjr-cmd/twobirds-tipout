@@ -480,7 +480,6 @@
         <button type="button" class="pin-key" data-digit="0">0</button>
         <button type="button" id="managerPinDelete" class="pin-key action">Delete</button>
       </div>
-      <button id="managerPinSubmit" class="primary" style="width:100%;max-width:300px;margin-top:12px;">Enter</button>
       <div id="managerPinError" class="pin-gate-error"></div>
     </div>
 
@@ -981,11 +980,11 @@ function initManagerGate(){
   const keypad = $("managerKeypad");
   const clearBtn = $("managerPinClear");
   const deleteBtn = $("managerPinDelete");
-  const submitBtn = $("managerPinSubmit");
   const errorEl = $("managerPinError");
-  if (!gate || !pinDisplay || !keypad || !clearBtn || !deleteBtn || !submitBtn || !errorEl) return;
+  if (!gate || !pinDisplay || !keypad || !clearBtn || !deleteBtn || !errorEl) return;
 
   let pinValue = "";
+  let unlocking = false;
 
   const clearError = () => { errorEl.textContent = ""; };
   const showError = msg => { errorEl.textContent = msg; };
@@ -1006,6 +1005,9 @@ function initManagerGate(){
     if (pinValue.length >= 4) return;
     setPin(pinValue + digit);
     clearError();
+    if (pinValue.length === 4) {
+      tryUnlock();
+    }
   };
 
   const deleteDigit = () => {
@@ -1028,6 +1030,7 @@ function initManagerGate(){
   deleteBtn.onclick = deleteDigit;
 
   const tryUnlock = () => {
+    if (unlocking) return;
     const pin = String(pinValue || "").trim();
     if (pin.length !== 4) {
       showError("Enter a valid 4-digit PIN.");
@@ -1041,10 +1044,9 @@ function initManagerGate(){
       return;
     }
 
+    unlocking = true;
     startPostPinVenueFlow(managerName);
   };
-
-  submitBtn.onclick = tryUnlock;
   document.addEventListener("keydown", e => {
     if (gate.style.display === "none") return;
     const pinCard = $("managerPinCard");
