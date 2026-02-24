@@ -1456,7 +1456,7 @@ function initManagerGate(){
     }, fadeDelayMs);
     pinErrorClearTimer = setTimeout(() => {
       clearError();
-    }, autoHideMs);
+    }, fadeDelayMs + fadeDurationMs + 40);
   };
   const renderPin = () => {
     const dots = pinDisplay.querySelectorAll(".pin-dot");
@@ -2155,7 +2155,7 @@ function setStatus(msg, type="", options = {}){
   }, fadeDelayMs);
   statusClearTimer = setTimeout(() => {
     setStatus("");
-  }, autoHideMs);
+  }, fadeDelayMs + fadeDurationMs + 40);
 }
 
 function setSendLoading(isLoading){
