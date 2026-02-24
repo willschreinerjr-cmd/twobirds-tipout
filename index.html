@@ -350,7 +350,7 @@
     .results-empty{ color:var(--muted); font-size:14px; padding:10px 2px; }
 
     .name-suggestion-menu{
-      position:fixed;
+      position:absolute;
       z-index:9999;
       display:none;
       max-height:240px;
@@ -1325,8 +1325,10 @@ function positionNameSuggestionMenu(input){
   if (!menu || !input) return;
 
   const rect = input.getBoundingClientRect();
-  menu.style.left = `${rect.left}px`;
-  menu.style.top = `${rect.bottom + 4}px`;
+  const left = rect.left + window.scrollX;
+  const top = rect.bottom + 4 + window.scrollY;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
   menu.style.width = `${rect.width}px`;
 }
 
