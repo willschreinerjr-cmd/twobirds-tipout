@@ -2261,6 +2261,16 @@ async function detectVenueFromLocation(){
     const pos = await getCurrentPosition();
     coords = pos.coords;
   } catch (err) {
+    if (err && typeof err.code === "number" && err.code === 3) {
+      try {
+        const retryPos = await getCurrentPosition({ timeout: 8000, maximumAge: 0 });
+        coords = retryPos.coords;
+      } catch (retryErr) {
+        err = retryErr;
+      }
+    }
+
+    if (!coords) {
     let reason = "Location unavailable.";
     if (err && typeof err.code === "number") {
       if (err.code === 1) reason = "Location permission denied.";
@@ -2268,6 +2278,7 @@ async function detectVenueFromLocation(){
       if (err.code === 3) reason = "Location request timed out.";
     }
     return { venue: null, reason };
+    }
   }
 
   if (!coords || !Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) {
