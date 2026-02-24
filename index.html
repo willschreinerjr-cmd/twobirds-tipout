@@ -1439,6 +1439,7 @@ function initManagerGate(){
       pinErrorClearTimer = null;
     }
     errorEl.classList.remove("fade-out");
+    errorEl.style.opacity = "1";
     errorEl.textContent = "";
   };
   const showError = (msg, autoHideMs = 3200) => {
@@ -1449,6 +1450,8 @@ function initManagerGate(){
     const fadeDurationMs = 350;
     const fadeDelayMs = Math.max(0, autoHideMs - fadeDurationMs);
     pinErrorFadeTimer = setTimeout(() => {
+      errorEl.style.transition = `opacity ${fadeDurationMs}ms var(--motion-ease)`;
+      errorEl.style.opacity = "0";
       errorEl.classList.add("fade-out");
     }, fadeDelayMs);
     pinErrorClearTimer = setTimeout(() => {
@@ -2134,6 +2137,7 @@ function setStatus(msg, type="", options = {}){
     statusClearTimer = null;
   }
   el.classList.remove("fade-out");
+  el.style.opacity = "1";
   el.textContent = msg;
   el.className = `status ${type}`.trim();
 
@@ -2145,6 +2149,8 @@ function setStatus(msg, type="", options = {}){
   const fadeDurationMs = 350;
   const fadeDelayMs = Math.max(0, autoHideMs - fadeDurationMs);
   statusFadeTimer = setTimeout(() => {
+    el.style.transition = `opacity ${fadeDurationMs}ms var(--motion-ease)`;
+    el.style.opacity = "0";
     el.classList.add("fade-out");
   }, fadeDelayMs);
   statusClearTimer = setTimeout(() => {
