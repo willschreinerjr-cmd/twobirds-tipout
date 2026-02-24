@@ -772,6 +772,10 @@ let detectedVenueReason = "";
 let authenticatedManagerName = "";
 let sendingReceipt = false;
 
+function scrollToTop(){
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
 function setManagerWelcome(name){
   const badge = $("managerWelcome");
   if (!badge) return;
@@ -1007,6 +1011,8 @@ function unlockAppForManager(name){
   const gate = $("pinGate");
   if (gate) gate.style.display = "none";
   document.body.style.overflow = "";
+  scrollToTop();
+  requestAnimationFrame(scrollToTop);
   setManagerWelcome(name);
   try {
     sessionStorage.setItem(MANAGER_PIN_KEY, name);
@@ -1865,6 +1871,12 @@ function hardReset(){
 }
 
 enforceMoneyInput($("pot"));
+try { history.scrollRestoration = "manual"; } catch {}
+scrollToTop();
+window.addEventListener("load", () => {
+  scrollToTop();
+  setTimeout(scrollToTop, 0);
+});
 $("pot").addEventListener("input", saveDraft);
 $("notes").addEventListener("input", saveDraft);
 $("pot").addEventListener("input", markUncalculated);
