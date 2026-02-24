@@ -1096,6 +1096,12 @@ function setVenueBadge(text){
   if (hasVenue) select.value = venueName;
 }
 
+function getSelectedVenueValue(){
+  const select = $("venueSelect");
+  const selected = String(select?.value || "").trim();
+  return VENUES.includes(selected) ? selected : "";
+}
+
 function initVenueSelect(){
   const select = $("venueSelect");
   if (!select) return;
@@ -1105,6 +1111,8 @@ function initVenueSelect(){
   const placeholder = document.createElement("option");
   placeholder.value = "";
   placeholder.textContent = "Select Venue";
+  placeholder.disabled = true;
+  placeholder.hidden = true;
   select.appendChild(placeholder);
 
   VENUES.forEach(venue => {
@@ -1116,7 +1124,12 @@ function initVenueSelect(){
 
   select.addEventListener("change", () => {
     const venue = String(select.value || "").trim();
-    if (!venue) return;
+    if (!VENUES.includes(venue)) {
+      if (detectedVenue && VENUES.includes(detectedVenue)) {
+        select.value = detectedVenue;
+      }
+      return;
+    }
     detectedVenue = venue;
     detectedVenueReason = "";
     setVenuePhoto(venue);
@@ -2312,6 +2325,9 @@ async function sendReceipt(){
   hideVenuePicker();
 
   let venue = detectedVenue;
+  if (!VENUES.includes(String(venue || "").trim())) {
+    venue = getSelectedVenueValue();
+  }
   if (!venue) {
     const reason = detectedVenueReason || "Location not matched.";
     setStatus(`${reason} Please choose your venue.`, "error");
