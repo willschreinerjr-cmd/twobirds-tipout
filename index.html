@@ -363,7 +363,6 @@
     button.primary:hover{ background:var(--green-dark); }
     button:disabled{ opacity:.55; cursor:not-allowed; }
     button.primary:disabled{ background:#9ca3af; border-color:#9ca3af; }
-    button.primary.pseudo-disabled{ background:#9ca3af; border-color:#9ca3af; cursor:not-allowed; }
     button.reset{ background:#eef0f3; }
     .venue-picker{ margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fafafa; }
     .venue-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
@@ -619,8 +618,7 @@
       <div class="row actions" style="margin-top:16px;">
         <button id="addEvent">+ Event Staff</button>
         <button id="addBartender">+ Bartender</button>
-        <button id="calc" class="primary">Calculate</button>
-        <button id="sendReceipt" class="primary" disabled>Send Receipt</button>
+        <button id="calc" class="primary">Calculate &amp; Send Receipt</button>
         <button id="reset" class="reset">Reset</button>
       </div>
       <div id="venuePicker" class="venue-picker" style="display:none;">
@@ -1282,15 +1280,6 @@ function setShiftManagerRow(name="", hours=""){
   body.prepend(tr);
 }
 
-function setCanSendReceipt(enabled){
-  const btn = $("sendReceipt");
-  if (!btn) return;
-  const canSend = !!enabled;
-  btn.disabled = false;
-  btn.classList.toggle("pseudo-disabled", !canSend);
-  btn.setAttribute("aria-disabled", String(!canSend));
-}
-
 function showToast(message){
   const toast = $("quickToast");
   if (!toast) return;
@@ -1306,7 +1295,6 @@ function showToast(message){
 
 function markUncalculated(){
   latestReceipt = null;
-  setCanSendReceipt(false);
   if ($("resultsBody").children.length === 0){
     $("resultsCard").style.display = "block";
     $("resultsEmpty").style.display = "block";
@@ -1842,7 +1830,7 @@ async function sendReceipt(){
   if (sendingReceipt) return;
   if (!latestReceipt){
     showToast("Calculate first.");
-    setStatus("Calculate first, then send the receipt.", "error");
+    setStatus("Calculate first.", "error");
     return;
   }
   setStatus("");
@@ -1887,7 +1875,6 @@ async function sendReceipt(){
   try {
     sendingReceipt = true;
     setSendLoading(true);
-    setCanSendReceipt(false);
     setStatus("Sending receipt...", "");
     const response = await postToAppsScript(RECEIPT_ENDPOINT, receipt);
     if (Number(response.replacedRows || 0) > 0){
@@ -1901,7 +1888,6 @@ async function sendReceipt(){
   } finally {
     sendingReceipt = false;
     setSendLoading(false);
-    setCanSendReceipt(!!latestReceipt);
   }
 }
 
@@ -1914,7 +1900,6 @@ function hardReset(){
   $("resultsCard").style.display = "block";
   $("resultsEmpty").style.display = "block";
   latestReceipt = null;
-  setCanSendReceipt(false);
   setSendLoading(false);
   setStatus("");
   clearDraft();
@@ -1948,19 +1933,16 @@ initManagerGate();
 
 $("resultsCard").style.display = "block";
 $("resultsEmpty").style.display = "block";
-setCanSendReceipt(false);
 
 $("addEvent").onclick = () => addEventStaff();
 $("addBartender").onclick = () => addBartender();
 $("reset").onclick = hardReset;
-$("sendReceipt").onclick = sendReceipt;
 
 $("calc").onclick = () => {
   $("resultsBody").innerHTML = "";
   $("resultsCard").style.display = "block";
   $("resultsEmpty").style.display = "none";
   latestReceipt = null;
-  setCanSendReceipt(false);
   setStatus("");
 
   const pot = getPotNumber();
@@ -2080,9 +2062,9 @@ $("calc").onclick = () => {
 
   $("resultsCard").style.display = "block";
   $("resultsEmpty").style.display = "none";
-  setCanSendReceipt(true);
   saveDraft();
-  setStatus("Calculated. Click Send Receipt to save/send this payout.", "success");
+  setStatus("Calculated. Sending receipt...", "success");
+  sendReceipt();
 };
 </script>
 
