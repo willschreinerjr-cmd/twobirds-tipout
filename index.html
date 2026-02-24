@@ -12,7 +12,21 @@
     }
     *{ box-sizing:border-box; }
     body{ margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
-    .app{ max-width:1200px; margin:0 auto; padding:20px; }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      background-image:var(--venue-bg-image, none);
+      background-size:cover;
+      background-position:center;
+      background-repeat:no-repeat;
+      opacity:0;
+      transition:opacity .25s ease;
+      pointer-events:none;
+      z-index:0;
+    }
+    body.has-venue-bg::before{ opacity:0.25; }
+    .app{ max-width:1200px; margin:0 auto; padding:20px; position:relative; z-index:1; }
 
     header{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
     .brand{ display:flex; align-items:center; gap:14px; }
@@ -22,7 +36,253 @@
     }
     .logo{ height:42px; width:auto; display:block; object-fit:contain; }
     h1{ margin:0; font-size:28px; font-weight:900; letter-spacing:-0.5px; }
-    .subtitle{ color:var(--muted); font-size:14px; margin-top:4px; }
+    .subtitle{ color:#4b5563; font-size:14px; font-weight:700; margin-top:4px; }
+    .manager-welcome{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:10px 14px;
+      font-size:14px;
+      font-weight:700;
+      color:#065f46;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04);
+      white-space:nowrap;
+      display:none;
+    }
+    .header-meta{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .venue-select-wrap{
+      position:relative;
+      display:none;
+      align-items:center;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:999px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04);
+      padding-left:58px;
+      min-width:210px;
+    }
+    .venue-prefix{
+      position:absolute;
+      left:14px;
+      top:50%;
+      transform:translateY(-50%);
+      font-size:14px;
+      font-weight:700;
+      color:#1f2937;
+      pointer-events:none;
+      white-space:nowrap;
+    }
+    .venue-select{
+      background:transparent;
+      border:0;
+      border-radius:999px;
+      padding:10px 14px 10px 0;
+      min-width:150px;
+      font-size:14px;
+      font-weight:700;
+      color:#1f2937;
+      white-space:nowrap;
+      display:inline-flex;
+      outline:none;
+      cursor:pointer;
+      appearance:auto;
+    }
+    .venue-photo-card{
+      display:none;
+      padding:12px;
+    }
+    .venue-photo-wrap{
+      width:100%;
+      border-radius:14px;
+      overflow:hidden;
+      border:1px solid var(--border);
+      background:#f3f4f6;
+    }
+    .venue-photo{
+      width:100%;
+      height:220px;
+      object-fit:cover;
+      display:block;
+    }
+    .venue-photo-label{
+      margin:10px 2px 2px;
+      font-size:14px;
+      font-weight:700;
+      color:#1f2937;
+    }
+
+    .pin-gate{
+      position:fixed;
+      inset:0;
+      z-index:10000;
+      background:#f6f7f9;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+    .pin-gate-card{
+      width:100%;
+      max-width:560px;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:24px;
+      padding:28px;
+      box-shadow:0 16px 40px rgba(0,0,0,0.08);
+      text-align:center;
+    }
+    .pin-gate-logo-row{
+      display:flex;
+      justify-content:center;
+      margin-bottom:12px;
+    }
+    .pin-gate-logo{
+      height:52px;
+      width:auto;
+      display:block;
+      object-fit:contain;
+    }
+    .pin-gate-title{
+      margin:0;
+      font-size:34px;
+      font-weight:900;
+      letter-spacing:-0.6px;
+    }
+    .pin-gate-subtitle{
+      margin:10px 0 18px;
+      color:var(--muted);
+      font-size:16px;
+      font-weight:600;
+    }
+    .pin-display{
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      margin:2px 0 16px;
+    }
+    .pin-dot{
+      width:16px;
+      height:16px;
+      border-radius:50%;
+      border:2px solid #9ca3af;
+      background:transparent;
+    }
+    .pin-dot.filled{
+      border-color:var(--green);
+      background:var(--green);
+    }
+    .pin-keypad{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:10px;
+      max-width:300px;
+      margin:0 auto;
+    }
+    .pin-key{
+      min-height:52px;
+      font-size:22px;
+      font-weight:800;
+      padding:0;
+    }
+    .pin-key.action{
+      font-size:14px;
+      font-weight:700;
+      padding:12px 8px;
+    }
+    .pin-gate-error{
+      min-height:22px;
+      margin-top:14px;
+      color:#b91c1c;
+      font-weight:700;
+      font-size:14px;
+    }
+    .pin-venue-buttons{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:10px;
+    }
+    .venue-gate-loading{
+      display:none;
+      width:100%;
+      height:10px;
+      border-radius:999px;
+      background:#e5e7eb;
+      overflow:hidden;
+      margin:6px 0 4px;
+    }
+    .venue-gate-loading-bar{
+      width:40%;
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg,#1f9d55,#34d399);
+      animation:venueLoad 1s ease-in-out infinite;
+      transform:translateX(-100%);
+    }
+    @keyframes venueLoad{
+      0%{ transform:translateX(-100%); }
+      100%{ transform:translateX(250%); }
+    }
+    .pin-venue-option{
+      position:relative;
+      overflow:hidden;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fff;
+      padding:0;
+      cursor:pointer;
+      transition:transform .15s ease, box-shadow .15s ease;
+      box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    }
+    .pin-venue-option:hover{
+      transform:translateY(-2px);
+      box-shadow:0 12px 24px rgba(0,0,0,0.16);
+    }
+    .pin-venue-option:active{
+      transform:translateY(0);
+    }
+    .pin-venue-option::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.55) 100%);
+      pointer-events:none;
+    }
+    .pin-venue-photo{
+      width:100%;
+      height:150px;
+      object-fit:cover;
+      display:block;
+      background:#eef0f3;
+    }
+    .pin-venue-name{
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:0;
+      z-index:1;
+      display:block;
+      width:100%;
+      padding:14px 12px;
+      text-align:center;
+      font-size:24px;
+      font-weight:900;
+      color:#fff;
+      text-shadow:0 2px 8px rgba(0,0,0,0.65);
+      letter-spacing:0.2px;
+    }
+
+    @media (max-width: 720px){
+      .pin-venue-buttons{
+        grid-template-columns:1fr;
+      }
+    }
 
     .card{
       background:var(--card); border:1px solid var(--border); border-radius:18px; padding:20px; margin-bottom:16px;
@@ -58,7 +318,7 @@
     .venue-actions .cancel{ background:#eef0f3; }
 
     table{ width:100%; border-collapse:collapse; margin-top:6px; }
-    th{ text-align:left; font-size:13px; color:var(--muted); font-weight:700; padding-bottom:8px; }
+    th{ text-align:left; font-size:13px; color:#374151; font-weight:800; padding-bottom:8px; }
     td{ padding:10px 0; border-bottom:1px solid var(--border); }
     th.right, td.right{ text-align:right; }
 
@@ -108,6 +368,50 @@
 </head>
 
 <body>
+  <div id="pinGate" class="pin-gate">
+    <div id="managerPinCard" class="pin-gate-card">
+      <div class="pin-gate-logo-row">
+        <img class="pin-gate-logo" src="TwoBirdsLogo_Lockup_Black.webp" alt="TwoBirds Event Group">
+      </div>
+      <h2 class="pin-gate-title">Manager PIN Required</h2>
+      <p class="pin-gate-subtitle">Enter your 4-digit manager PIN to continue.</p>
+      <div id="managerPinDisplay" class="pin-display" aria-label="PIN entry status">
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+      </div>
+      <div id="managerKeypad" class="pin-keypad" aria-label="Manager PIN keypad">
+        <button type="button" class="pin-key" data-digit="1">1</button>
+        <button type="button" class="pin-key" data-digit="2">2</button>
+        <button type="button" class="pin-key" data-digit="3">3</button>
+        <button type="button" class="pin-key" data-digit="4">4</button>
+        <button type="button" class="pin-key" data-digit="5">5</button>
+        <button type="button" class="pin-key" data-digit="6">6</button>
+        <button type="button" class="pin-key" data-digit="7">7</button>
+        <button type="button" class="pin-key" data-digit="8">8</button>
+        <button type="button" class="pin-key" data-digit="9">9</button>
+        <button type="button" id="managerPinClear" class="pin-key action">Clear</button>
+        <button type="button" class="pin-key" data-digit="0">0</button>
+        <button type="button" id="managerPinDelete" class="pin-key action">Delete</button>
+      </div>
+      <button id="managerPinSubmit" class="primary" style="width:100%;max-width:300px;margin-top:12px;">Enter</button>
+      <div id="managerPinError" class="pin-gate-error"></div>
+    </div>
+
+    <div id="venueGateCard" class="pin-gate-card" style="display:none;">
+      <div class="pin-gate-logo-row">
+        <img class="pin-gate-logo" src="TwoBirdsLogo_Lockup_Black.webp" alt="TwoBirds Event Group">
+      </div>
+      <h2 class="pin-gate-title">Select Venue</h2>
+      <p id="venueGateSubtitle" class="pin-gate-subtitle">Detecting your location...</p>
+      <div id="venueGateLoading" class="venue-gate-loading">
+        <div class="venue-gate-loading-bar"></div>
+      </div>
+      <div id="venueGateButtons" class="pin-venue-buttons"></div>
+    </div>
+  </div>
+
   <div class="app">
 
     <header>
@@ -120,7 +424,21 @@
           <div class="subtitle">Event payout calculator</div>
         </div>
       </div>
+      <div class="header-meta">
+        <div id="managerWelcome" class="manager-welcome"></div>
+        <div id="venueSelectWrap" class="venue-select-wrap">
+          <span class="venue-prefix">Venue:</span>
+          <select id="venueSelect" class="venue-select"></select>
+        </div>
+      </div>
     </header>
+
+    <div id="venuePhotoCard" class="card venue-photo-card">
+      <div class="venue-photo-wrap">
+        <img id="venuePhoto" class="venue-photo" alt="Current venue photo">
+      </div>
+      <div id="venuePhotoLabel" class="venue-photo-label"></div>
+    </div>
 
     <div class="card">
       <div class="row">
@@ -203,7 +521,23 @@ const EVENT_STAFF_PCT_EACH = 0.10;
 function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
 
-const VENUES = ["Ivy House", "Starling", "Rivulete", "PSP", "Society"];
+const VENUES = ["Ivy House", "Starling", "Rivulet", "PSP", "Society"];
+const VENUE_ADDRESS_BOOK = {
+  "Ivy House": "South Barclay Street, Milwaukee, WI",
+  "Starling": "102 N Water St, Milwaukee, WI 53202",
+  "Rivulet": "309 N Water St, Milwaukee, WI 53202",
+  "PSP": "1420 East Park Place, Milwaukee, WI",
+  "Society": "910 N Doctor M.L.K Jr Dr, Milwaukee, WI 53203"
+};
+const VENUE_COORDINATES = {};
+const VENUE_PHOTO_BOOK = {
+  "Ivy House": "venue-photos/IvyHouse.jpg",
+  "Starling": "venue-photos/Starling.jpg",
+  "Rivulet": "venue-photos/Rivulet.webp",
+  "PSP": "venue-photos/PSP.webp",
+  "Society": "venue-photos/Society.jpg"
+};
+const VENUE_MATCH_RADIUS_METERS = 5000;
 const STAFF_NAMES = [
   "Alex Kerkman",
   "Alexis Madau",
@@ -271,10 +605,349 @@ const STAFF_NAMES = [
 const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y/edit?usp=sharing";
 const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
 const DRAFT_KEY = "twobirds-tipout-draft-v1";
+const MANAGER_PIN_KEY = "twobirds-manager-auth-v1";
+const MANAGER_PINS = {
+  "1218": "Will Schreiner",
+  "0424": "Olivia Bartels",
+  "5097": "Ashley Brunette",
+  "8707": "Avery Diercks",
+  "0087": "Julianne Dollard",
+  "1212": "Renee Ehlers",
+  "2112": "Sal Gauthier",
+  "8167": "Jesse Hertzke",
+  "8121": "JJ Ingrassia",
+  "3805": "Alex Kerkman",
+  "5596": "Lacey Kremer",
+  "1290": "Ben McGill"
+};
 let latestReceipt = null;
 let activeNameInput = null;
 let activeNameSuggestions = [];
 let activeNameSuggestionIndex = -1;
+const venueGeocodeCache = new Map();
+let detectedVenue = "";
+let detectedVenueReason = "";
+let authenticatedManagerName = "";
+
+function setManagerWelcome(name){
+  const badge = $("managerWelcome");
+  if (!badge) return;
+  if (!name) {
+    badge.textContent = "";
+    badge.style.display = "none";
+    return;
+  }
+  badge.textContent = `Signed in as ${name}`;
+  badge.style.display = "inline-flex";
+}
+
+function setVenueBadge(text){
+  const select = $("venueSelect");
+  const wrap = $("venueSelectWrap");
+  if (!select || !wrap) return;
+  const value = String(text || "").trim();
+  if (!value) {
+    select.value = "";
+    wrap.style.display = "none";
+    return;
+  }
+  wrap.style.display = "inline-flex";
+
+  if (value === "Venue: Detecting..." || value === "Venue: Not selected" || value === "Venue: Not detected") {
+    select.value = "";
+    return;
+  }
+
+  const venueText = value.startsWith("Venue:") ? value.slice(6).trim() : value;
+  const venueName = venueText.replace(/\s*\(Estimated\)\s*$/i, "").trim();
+  const hasVenue = [...select.options].some(opt => opt.value === venueName);
+  if (hasVenue) select.value = venueName;
+}
+
+function initVenueSelect(){
+  const select = $("venueSelect");
+  if (!select) return;
+
+  select.innerHTML = "";
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select Venue";
+  select.appendChild(placeholder);
+
+  VENUES.forEach(venue => {
+    const option = document.createElement("option");
+    option.value = venue;
+    option.textContent = venue;
+    select.appendChild(option);
+  });
+
+  select.addEventListener("change", () => {
+    const venue = String(select.value || "").trim();
+    if (!venue) return;
+    detectedVenue = venue;
+    detectedVenueReason = "";
+    setVenuePhoto(venue);
+  });
+}
+
+function setVenuePhoto(venue){
+  const card = $("venuePhotoCard");
+  const img = $("venuePhoto");
+  const label = $("venuePhotoLabel");
+  if (!card || !img || !label) return;
+
+  const venueName = String(venue || "").trim();
+  if (!venueName) {
+    img.removeAttribute("src");
+    label.textContent = "";
+    card.style.display = "none";
+    document.body.classList.remove("has-venue-bg");
+    document.body.style.removeProperty("--venue-bg-image");
+    return;
+  }
+
+  const photoSrc = String(VENUE_PHOTO_BOOK[venueName] || "").trim();
+  if (!photoSrc) {
+    img.removeAttribute("src");
+    label.textContent = `Current Venue: ${venueName}`;
+    card.style.display = "none";
+    document.body.classList.remove("has-venue-bg");
+    document.body.style.removeProperty("--venue-bg-image");
+    return;
+  }
+
+  img.onerror = () => {
+    card.style.display = "none";
+    document.body.classList.remove("has-venue-bg");
+    document.body.style.removeProperty("--venue-bg-image");
+  };
+  img.onload = () => {
+    card.style.display = "none";
+    document.body.style.setProperty("--venue-bg-image", `url(\"${photoSrc}\")`);
+    document.body.classList.add("has-venue-bg");
+  };
+  img.src = photoSrc;
+  img.alt = `${venueName} venue photo`;
+  label.textContent = `Current Venue: ${venueName}`;
+}
+
+function showManagerPinCard(){
+  const pinCard = $("managerPinCard");
+  const venueCard = $("venueGateCard");
+  if (pinCard) pinCard.style.display = "block";
+  if (venueCard) venueCard.style.display = "none";
+}
+
+function showVenueGateCard(subtitle = "Select your venue to continue."){
+  const pinCard = $("managerPinCard");
+  const venueCard = $("venueGateCard");
+  const subtitleEl = $("venueGateSubtitle");
+  if (pinCard) pinCard.style.display = "none";
+  if (venueCard) venueCard.style.display = "block";
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+}
+
+function setVenueGateLoading(isLoading){
+  const loading = $("venueGateLoading");
+  if (!loading) return;
+  loading.style.display = isLoading ? "block" : "none";
+}
+
+function renderVenueGateButtons(){
+  const wrap = $("venueGateButtons");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  VENUES.forEach(venue => {
+    const btn = document.createElement("button");
+    const photoSrc = String(VENUE_PHOTO_BOOK[venue] || "").trim();
+
+    btn.type = "button";
+    btn.className = "pin-venue-option";
+    btn.innerHTML = `
+      <img class="pin-venue-photo" src="${escapeHtml(photoSrc)}" alt="${escapeHtml(venue)} venue photo">
+      <span class="pin-venue-name">${escapeHtml(venue)}</span>
+    `;
+
+    const img = btn.querySelector("img");
+    if (img && !photoSrc) {
+      img.style.display = "none";
+    } else if (img) {
+      img.onerror = () => {
+        img.style.display = "none";
+      };
+    }
+
+    btn.onclick = () => {
+      detectedVenue = venue;
+      detectedVenueReason = "";
+      setVenueBadge(`Venue: ${detectedVenue}`);
+      setVenuePhoto(detectedVenue);
+      unlockAppForManager(authenticatedManagerName);
+    };
+    wrap.appendChild(btn);
+  });
+}
+
+function unlockAppForManager(name){
+  const gate = $("pinGate");
+  if (gate) gate.style.display = "none";
+  document.body.style.overflow = "";
+  setManagerWelcome(name);
+  try {
+    sessionStorage.setItem(MANAGER_PIN_KEY, name);
+  } catch {}
+}
+
+async function startPostPinVenueFlow(name){
+  authenticatedManagerName = String(name || "").trim();
+  document.body.style.overflow = "hidden";
+  setManagerWelcome(authenticatedManagerName);
+  setVenueBadge("Venue: Detecting...");
+  setVenuePhoto("");
+
+  showVenueGateCard("Detecting your location...");
+  setVenueGateLoading(true);
+  const buttonsWrap = $("venueGateButtons");
+  if (buttonsWrap) buttonsWrap.innerHTML = "";
+
+  const result = await detectVenueFromLocation();
+  setVenueGateLoading(false);
+  if (result && result.venue && !result.lowConfidence) {
+    detectedVenue = result.venue;
+    detectedVenueReason = "";
+    setVenueBadge(`Venue: ${detectedVenue}`);
+    setVenuePhoto(detectedVenue);
+    unlockAppForManager(authenticatedManagerName);
+    return;
+  }
+
+  detectedVenue = "";
+  detectedVenueReason = result && result.reason ? result.reason : "Location not matched.";
+  setVenueBadge("Venue: Not selected");
+  setVenuePhoto("");
+
+  showVenueGateCard("Select your venue to continue.");
+  setVenueGateLoading(false);
+  renderVenueGateButtons();
+}
+
+function initManagerGate(){
+  const gate = $("pinGate");
+  const pinDisplay = $("managerPinDisplay");
+  const keypad = $("managerKeypad");
+  const clearBtn = $("managerPinClear");
+  const deleteBtn = $("managerPinDelete");
+  const submitBtn = $("managerPinSubmit");
+  const errorEl = $("managerPinError");
+  if (!gate || !pinDisplay || !keypad || !clearBtn || !deleteBtn || !submitBtn || !errorEl) return;
+
+  let pinValue = "";
+
+  const clearError = () => { errorEl.textContent = ""; };
+  const showError = msg => { errorEl.textContent = msg; };
+  const renderPin = () => {
+    const dots = pinDisplay.querySelectorAll(".pin-dot");
+    dots.forEach((dot, idx) => {
+      dot.classList.toggle("filled", idx < pinValue.length);
+    });
+  };
+
+  const setPin = value => {
+    pinValue = String(value || "").replace(/\D+/g, "").slice(0, 4);
+    renderPin();
+  };
+
+  const appendDigit = digit => {
+    if (!/^\d$/.test(String(digit || ""))) return;
+    if (pinValue.length >= 4) return;
+    setPin(pinValue + digit);
+    clearError();
+  };
+
+  const deleteDigit = () => {
+    if (!pinValue) return;
+    setPin(pinValue.slice(0, -1));
+    clearError();
+  };
+
+  keypad.addEventListener("click", e => {
+    const btn = e.target.closest("button[data-digit]");
+    if (!btn) return;
+    appendDigit(btn.getAttribute("data-digit"));
+  });
+
+  clearBtn.onclick = () => {
+    setPin("");
+    clearError();
+  };
+
+  deleteBtn.onclick = deleteDigit;
+
+  const tryUnlock = () => {
+    const pin = String(pinValue || "").trim();
+    if (pin.length !== 4) {
+      showError("Enter a valid 4-digit PIN.");
+      return;
+    }
+
+    const managerName = MANAGER_PINS[pin];
+    if (!managerName) {
+      showError("Invalid manager PIN.");
+      setPin("");
+      return;
+    }
+
+    startPostPinVenueFlow(managerName);
+  };
+
+  submitBtn.onclick = tryUnlock;
+  document.addEventListener("keydown", e => {
+    if (gate.style.display === "none") return;
+    const pinCard = $("managerPinCard");
+    if (!pinCard || pinCard.style.display === "none") return;
+
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      appendDigit(e.key);
+      return;
+    }
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      deleteDigit();
+      return;
+    }
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setPin("");
+      clearError();
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      tryUnlock();
+    }
+  });
+
+  let existingManager = "";
+  try {
+    existingManager = sessionStorage.getItem(MANAGER_PIN_KEY) || "";
+  } catch {}
+
+  if (existingManager) {
+    document.body.style.overflow = "hidden";
+    startPostPinVenueFlow(existingManager);
+    return;
+  }
+
+  showManagerPinCard();
+  renderPin();
+  document.body.style.overflow = "hidden";
+}
 
 function escapeHtml(s){
   return String(s ?? "")
@@ -324,6 +997,32 @@ function addBartender(name="", hours="", focusName=true){
   if (focusName) inputs[0].focus();
   markUncalculated();
   saveDraft();
+}
+
+function setShiftManagerRow(name="", hours=""){
+  const body = $("peopleBody");
+  if (!body) return;
+
+  let tr = body.querySelector('tr[data-staff-role="shift-manager"]');
+  if (!tr) {
+    tr = document.createElement("tr");
+    tr.dataset.staffRole = "shift-manager";
+    tr.innerHTML = `
+      <td><input placeholder="Shift Manager" value=""></td>
+      <td><input type="number" step="0.25" value=""></td>
+      <td class="right"></td>
+    `;
+    const inputs = tr.querySelectorAll("input");
+    enableNameAutocomplete(inputs[0]);
+    enableArrowBoxNavigation(inputs[0]);
+    enableArrowBoxNavigation(inputs[1]);
+    enforceLettersOnly(inputs[0]);
+  }
+
+  const inputs = tr.querySelectorAll("input");
+  inputs[0].value = String(name || "");
+  inputs[1].value = String(hours || "");
+  body.prepend(tr);
 }
 
 function setCanSendReceipt(enabled){
@@ -592,7 +1291,15 @@ function isValidTypedName(value){
 
 function getDraft(){
   const eventStaff = [...$("eventBody").querySelectorAll("input")].map(i => normalizeName(i.value));
-  const bartenders = [...$("peopleBody").querySelectorAll("tr")].map(tr => {
+  const shiftRow = $("peopleBody").querySelector('tr[data-staff-role="shift-manager"]');
+  const shiftInputs = shiftRow ? shiftRow.querySelectorAll("input") : [];
+  const shiftManager = {
+    name: normalizeName(shiftInputs[0]?.value || ""),
+    hours: shiftInputs[1]?.value || ""
+  };
+  const bartenders = [...$("peopleBody").querySelectorAll("tr")]
+    .filter(tr => tr.dataset.staffRole !== "shift-manager")
+    .map(tr => {
     const inputs = tr.querySelectorAll("input");
     return {
       name: normalizeName(inputs[0].value),
@@ -604,6 +1311,7 @@ function getDraft(){
     pot: $("pot").value || "",
     notes: $("notes").value || "",
     eventStaff,
+    shiftManager,
     bartenders
   };
 }
@@ -636,14 +1344,15 @@ function restoreDraft(){
     $("peopleBody").innerHTML = "";
 
     const events = Array.isArray(draft.eventStaff) ? draft.eventStaff : [];
+    const shift = draft.shiftManager && typeof draft.shiftManager === "object" ? draft.shiftManager : {};
     const bartenders = Array.isArray(draft.bartenders) ? draft.bartenders : [];
 
     events.forEach(name => addEventStaff(normalizeName(name)));
+    setShiftManagerRow(normalizeName(shift.name || ""), shift.hours || "");
 
     if (bartenders.length) {
       bartenders.forEach(b => addBartender(normalizeName(b.name || ""), b.hours || ""));
     } else {
-      addBartender();
       addBartender();
     }
 
@@ -703,6 +1412,125 @@ function pickVenue(){
   });
 }
 
+function getCurrentPosition(options = {}){
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported."));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 8000,
+      maximumAge: 60000,
+      ...options
+    });
+  });
+}
+
+async function geocodeVenueAddress(venue, address){
+  const cleanVenue = String(venue || "").trim();
+  const cleanAddress = String(address || "").trim();
+  if (!cleanVenue || !cleanAddress) return null;
+
+  const cacheKey = `${cleanVenue}::${cleanAddress}`;
+  if (venueGeocodeCache.has(cacheKey)) {
+    return venueGeocodeCache.get(cacheKey);
+  }
+
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(cleanAddress)}`;
+  const res = await fetch(url, {
+    headers: { "Accept": "application/json" }
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  const top = Array.isArray(data) ? data[0] : null;
+  if (!top || !top.lat || !top.lon) return null;
+
+  const point = {
+    lat: Number(top.lat),
+    lon: Number(top.lon)
+  };
+  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
+
+  venueGeocodeCache.set(cacheKey, point);
+  return point;
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2){
+  const toRad = deg => (deg * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadius * c;
+}
+
+async function detectVenueFromLocation(){
+  let coords;
+  try {
+    const pos = await getCurrentPosition();
+    coords = pos.coords;
+  } catch (err) {
+    let reason = "Location unavailable.";
+    if (err && typeof err.code === "number") {
+      if (err.code === 1) reason = "Location permission denied.";
+      if (err.code === 2) reason = "Location unavailable from device.";
+      if (err.code === 3) reason = "Location request timed out.";
+    }
+    return { venue: null, reason };
+  }
+
+  if (!coords || !Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) {
+    return { venue: null, reason: "Location coordinates were invalid." };
+  }
+
+  const entries = Object.entries(VENUE_ADDRESS_BOOK).filter(([, address]) => String(address || "").trim());
+  if (!entries.length) return { venue: null, reason: "No venue addresses are configured." };
+
+  let bestVenue = null;
+  let bestDistance = Infinity;
+
+  for (const [venue, address] of entries) {
+    try {
+      const coordOverride = VENUE_COORDINATES[venue];
+      const hasOverride =
+        coordOverride &&
+        Number.isFinite(coordOverride.lat) &&
+        Number.isFinite(coordOverride.lon);
+      const point = hasOverride ? coordOverride : await geocodeVenueAddress(venue, address);
+      if (!point) continue;
+      const d = distanceMeters(coords.latitude, coords.longitude, point.lat, point.lon);
+      if (d < bestDistance) {
+        bestDistance = d;
+        bestVenue = venue;
+      }
+    } catch {}
+  }
+
+  if (!bestVenue) return { venue: null, reason: "Could not match location to venue addresses." };
+  if (bestDistance > VENUE_MATCH_RADIUS_METERS) {
+    return {
+      venue: bestVenue,
+      reason: `Estimated from nearest venue (${Math.round(bestDistance)}m away)`,
+      distanceMeters: bestDistance,
+      lowConfidence: true
+    };
+  }
+
+  return {
+    venue: bestVenue,
+    reason: "",
+    distanceMeters: bestDistance,
+    lowConfidence: false
+  };
+}
+
 async function postToAppsScript(endpoint, payload){
   const json = JSON.stringify(payload);
 
@@ -736,7 +1564,18 @@ async function sendReceipt(){
     return;
   }
 
-  const venue = await pickVenue();
+  let venue = detectedVenue;
+  if (!venue) {
+    const reason = detectedVenueReason || "Location not matched.";
+    setStatus(`${reason} Please choose your venue.`, "error");
+    venue = await pickVenue();
+    if (venue) {
+      detectedVenue = venue;
+      detectedVenueReason = "";
+      setVenueBadge(`Venue: ${detectedVenue}`);
+      setVenuePhoto(detectedVenue);
+    }
+  }
   if (!venue){
     setStatus("Send canceled or invalid venue selection.", "error");
     return;
@@ -786,7 +1625,7 @@ function hardReset(){
   setCanSendReceipt(false);
   setStatus("");
   clearDraft();
-  addBartender("", "", false);
+  setShiftManagerRow("", "");
   addBartender("", "", false);
 }
 
@@ -800,11 +1639,13 @@ $("eventBody").addEventListener("input", markUncalculated);
 $("peopleBody").addEventListener("input", markUncalculated);
 
 if (!restoreDraft()) {
-  addBartender("", "", false);
+  setShiftManagerRow("", "");
   addBartender("", "", false);
 }
 
 initNameSuggestions();
+initVenueSelect();
+initManagerGate();
 
 $("resultsCard").style.display = "block";
 $("resultsEmpty").style.display = "block";
@@ -837,7 +1678,17 @@ $("calc").onclick = () => {
       return cleaned || `Event Staff ${idx+1}`;
     });
 
+  const shiftRow = $("peopleBody").querySelector('tr[data-staff-role="shift-manager"]');
+  const shiftInputs = shiftRow ? shiftRow.querySelectorAll("input") : [];
+  const shiftManagerName = normalizeName(shiftInputs[0]?.value || "");
+  if (shiftInputs[0]) shiftInputs[0].value = shiftManagerName;
+  const shiftManagerHours = +(shiftInputs[1]?.value || 0);
+  if (shiftManagerName && !isValidTypedName(shiftManagerName)) {
+    hasInvalidName = true;
+  }
+
   const bartenders = [...$("peopleBody").querySelectorAll("tr")]
+    .filter(tr => tr.dataset.staffRole !== "shift-manager")
     .map((tr, idx) => {
       const i = tr.querySelectorAll("input");
       const cleanedName = normalizeName(i[0].value || "");
@@ -849,12 +1700,20 @@ $("calc").onclick = () => {
     })
     .filter(b => b.hours > 0);
 
+  const payoutPeople = [];
+  if (shiftManagerHours > 0) {
+    payoutPeople.push({ role: "Shift Manager", name: shiftManagerName || "Shift Manager", hours: shiftManagerHours });
+  }
+  bartenders.forEach(b => {
+    payoutPeople.push({ role: "Bartender", name: b.name, hours: b.hours });
+  });
+
   if (hasInvalidName) {
     setStatus("Names must contain at least 2 letters.", "error");
     return;
   }
 
-  if (!bartenders.length) return;
+  if (!payoutPeople.length) return;
 
   // Event Staff total = 10% each
   const eventEach = eventStaff.length ? Math.floor(pot * EVENT_STAFF_PCT_EACH) : 0;
@@ -862,7 +1721,7 @@ $("calc").onclick = () => {
 
   const remaining = Math.max(0, pot - eventTotal);
 
-  const totalHours = bartenders.reduce((s,b)=>s+b.hours,0);
+  const totalHours = payoutPeople.reduce((s,b)=>s+b.hours,0);
   if (totalHours <= 0) return;
 
   // ✅ Base bartender rate, rounded to 2 decimals (display + calculation match)
@@ -891,8 +1750,8 @@ $("calc").onclick = () => {
     });
   });
 
-  // Bartender rows (tipout uses rounded baseRate)
-  bartenders.forEach(b => {
+  // Shift Manager + Bartender rows (tipout uses rounded baseRate)
+  payoutPeople.forEach(b => {
     const tipout = Math.floor(b.hours * baseRate);
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -903,7 +1762,7 @@ $("calc").onclick = () => {
     body.appendChild(tr);
 
     entries.push({
-      role: "Bartender",
+      role: b.role,
       name: b.name,
       hours: b.hours,
       rate: baseRate,
@@ -914,7 +1773,7 @@ $("calc").onclick = () => {
   latestReceipt = {
     totalPot: pot,
     eventStaffCount: eventStaff.length,
-    bartenderCount: bartenders.length,
+    bartenderCount: payoutPeople.length,
     remainingForBartenders: remaining,
     bartenderRate: baseRate,
     entries
