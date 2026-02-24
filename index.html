@@ -164,6 +164,12 @@
       font-size:16px;
       font-weight:600;
     }
+    .pin-gate-greeting{
+      margin:8px 0 4px;
+      color:#1f2937;
+      font-size:17px;
+      font-weight:700;
+    }
     .pin-display{
       display:flex;
       justify-content:center;
@@ -429,10 +435,17 @@
       .venue-select-wrap{
         width:100%;
         min-width:0;
+        padding-left:72px;
+      }
+      .venue-prefix{
+        left:12px;
+        font-size:13px;
       }
       .venue-select{
         width:100%;
         min-width:0;
+        padding:10px 12px 10px 0;
+        font-size:13px;
       }
       .card{
         padding:14px;
@@ -509,6 +522,7 @@
         <img class="pin-gate-logo" src="TwoBirdsLogo_Lockup_Black.webp" alt="TwoBirds Event Group">
       </div>
       <h2 class="pin-gate-title">Select Venue</h2>
+      <p id="venueGateGreeting" class="pin-gate-greeting" style="display:none;"></p>
       <p id="venueGateSubtitle" class="pin-gate-subtitle">Detecting your location...</p>
       <div id="venueGateLoading" class="venue-gate-loading">
         <div class="venue-gate-loading-bar"></div>
@@ -922,6 +936,19 @@ function setVenueGateLoading(isLoading){
   loading.style.display = isLoading ? "block" : "none";
 }
 
+function setVenueGateGreeting(name){
+  const greeting = $("venueGateGreeting");
+  if (!greeting) return;
+  const cleanName = String(name || "").trim();
+  if (!cleanName) {
+    greeting.textContent = "";
+    greeting.style.display = "none";
+    return;
+  }
+  greeting.textContent = `Hey ${cleanName}!`;
+  greeting.style.display = "block";
+}
+
 function renderVenueGateButtons(){
   const wrap = $("venueGateButtons");
   if (!wrap) return;
@@ -979,6 +1006,7 @@ async function startPostPinVenueFlow(name){
   authenticatedManagerName = String(name || "").trim();
   document.body.style.overflow = "hidden";
   setManagerWelcome(authenticatedManagerName);
+  setVenueGateGreeting(authenticatedManagerName);
   setVenueBadge("Venue: Detecting...");
   setVenuePhoto("");
 
