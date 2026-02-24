@@ -379,8 +379,75 @@
     }
 
     @media (max-width: 720px){
+      .app{ padding:12px; }
+      header{
+        flex-direction:column;
+        align-items:flex-start;
+        gap:10px;
+      }
+      .brand{
+        width:100%;
+        gap:10px;
+      }
+      .logo-wrap{
+        padding:8px 10px;
+        border-radius:12px;
+      }
+      .logo{ height:34px; }
+      h1{ font-size:24px; }
+      .subtitle{ font-size:13px; }
+      .header-meta{
+        width:100%;
+        justify-content:flex-start;
+      }
+      .manager-welcome{
+        width:100%;
+        border-radius:14px;
+        white-space:normal;
+      }
+      .venue-select-wrap{
+        width:100%;
+        min-width:0;
+      }
+      .venue-select{
+        width:100%;
+        min-width:0;
+      }
+      .card{
+        padding:14px;
+        border-radius:14px;
+      }
+      .row{
+        flex-direction:column;
+        align-items:stretch;
+        gap:10px;
+      }
+      .row > *{
+        min-width:0;
+        width:100%;
+      }
+      input{
+        font-size:16px;
+        padding:12px 14px;
+      }
+      textarea{
+        font-size:14px;
+        padding:10px 12px;
+      }
       .actions{ gap:8px; }
-      .actions button{ flex:1 1 calc(50% - 8px); min-width:0; padding:14px 12px; }
+      .actions button{
+        flex:1 1 100%;
+        width:100%;
+        min-width:0;
+        padding:12px 12px;
+      }
+      table{
+        display:block;
+        width:100%;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+      }
+      th, td{ white-space:nowrap; }
     }
   </style>
 </head>
