@@ -20,6 +20,7 @@
       --motion-panel:320ms;
       --motion-scene:780ms;
       --motion-slow:1000ms;
+      --motion-venue-switch:1000ms;
       --motion-ease:cubic-bezier(.22,.61,.36,1);
       --motion-soft:cubic-bezier(.2,.7,.2,1);
     }
@@ -87,7 +88,7 @@
       padding-left:58px;
       min-width:210px;
     }
-    .venue-select-wrap.ui-fade{ transition:opacity 1000ms var(--motion-soft), transform 1000ms var(--motion-soft); }
+    .venue-select-wrap.ui-fade{ transition:opacity var(--motion-venue-switch) var(--motion-soft), transform var(--motion-venue-switch) var(--motion-soft); }
     .venue-prefix{
       position:absolute;
       left:14px;
@@ -518,7 +519,7 @@
     button.primary:disabled{ background:#9ca3af; border-color:#9ca3af; }
     button.reset{ background:#eef0f3; }
     .venue-picker{ margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fafafa; }
-    .venue-picker.ui-fade{ transition:opacity 1000ms var(--motion-soft), transform 1000ms var(--motion-soft); }
+    .venue-picker.ui-fade{ transition:opacity var(--motion-venue-switch) var(--motion-soft), transform var(--motion-venue-switch) var(--motion-soft); }
     .venue-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
     .venue-actions button{ padding:10px 14px; font-size:14px; }
     .venue-actions .cancel{ background:#eef0f3; }
@@ -985,8 +986,9 @@ let statusFadeTimer = null;
 let statusClearTimer = null;
 let activeVenueBgLayer = "a";
 const VISIBILITY_TRANSITION_MS = 280;
-const VENUE_SELECT_TRANSITION_MS = 1000;
-const VENUE_PICKER_TRANSITION_MS = 1000;
+const VENUE_SWITCH_TRANSITION_MS = 1000;
+const VENUE_SELECT_TRANSITION_MS = VENUE_SWITCH_TRANSITION_MS;
+const VENUE_PICKER_TRANSITION_MS = VENUE_SWITCH_TRANSITION_MS;
 const MIN_LOADING_VISIBLE_MS = 520;
 const visibilityTimers = new WeakMap();
 const loadingStateMap = new WeakMap();
