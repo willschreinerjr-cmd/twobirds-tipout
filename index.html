@@ -319,6 +319,23 @@
     label{ display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
     input{ width:100%; padding:14px 16px; font-size:18px; border-radius:14px; border:1px solid var(--border); outline:none; }
     input:focus{ border-color:var(--green); }
+    .staff-role{
+      width:100%;
+      padding:10px 12px;
+      font-size:14px;
+      font-weight:700;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#fff;
+      color:#1f2937;
+      outline:none;
+    }
+    .staff-role:focus{ border-color:var(--green); }
+    .hours-input:disabled{
+      background:#f3f4f6;
+      color:#9ca3af;
+      cursor:not-allowed;
+    }
     textarea{ width:100%; padding:12px 14px; font-size:15px; border-radius:14px; border:1px solid var(--border); outline:none; resize:vertical; min-height:84px; font-family:inherit; }
     textarea:focus{ border-color:var(--green); }
 
@@ -616,8 +633,7 @@
       </div>
 
       <div class="row actions" style="margin-top:16px;">
-        <button id="addEvent">+ Event Staff</button>
-        <button id="addBartender">+ Bartender</button>
+        <button id="addStaff">+ Staff</button>
         <button id="calc" class="primary">Calculate &amp; Send Receipt</button>
         <button id="reset" class="reset">Reset</button>
       </div>
@@ -633,29 +649,18 @@
       <table>
         <thead>
           <tr>
-            <th>Event Staff</th>
-            <th class="right"></th>
-          </tr>
-        </thead>
-        <tbody id="eventBody"></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>Bartender</th>
+            <th>Role</th>
+            <th>Name</th>
             <th>Hours</th>
             <th class="right"></th>
           </tr>
         </thead>
-        <tbody id="peopleBody"></tbody>
+        <tbody id="staffBody"></tbody>
       </table>
     </div>
 
     <div class="card results-card" id="resultsCard" style="display:none;">
-      <div id="resultsEmpty" class="results-empty">Add staff and hours, then click Calculate to preview tipouts.</div>
+      <div id="resultsEmpty" class="results-empty">Add staff rows, then click Calculate to preview tipouts.</div>
       <table>
         <thead>
           <tr>
@@ -1210,74 +1215,99 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-function addEventStaff(name="", focusName=true){
+function hasExistingShiftManager(excludeRow = null){
+  const body = $("staffBody");
+  if (!body) return false;
+  return [...body.querySelectorAll("tr")].some(tr => {
+    if (excludeRow && tr === excludeRow) return false;
+    const role = String(tr.querySelector(".staff-role")?.value || "").trim();
+    return role === "Shift Manager";
+  });
+}
+
+function addStaff(role="Bartender", name="", hours="", focusName=true){
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td><input placeholder="Event Staff" value="${escapeHtml(name)}"></td>
+    <td>
+      <select class="staff-role">
+        <option value="Event Staff">Event Staff</option>
+        <option value="Shift Manager">Shift Manager</option>
+        <option value="Bartender">Bartender</option>
+      </select>
+    </td>
+    <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
+    <td><input class="hours-input" type="number" step="0.25" value="${escapeHtml(hours)}"></td>
     <td class="right"><button class="remove" title="Remove">✕</button></td>
   `;
-  const nameInput = tr.querySelector("input");
+
+  const roleSelect = tr.querySelector(".staff-role");
+  const inputs = tr.querySelectorAll("input");
+  const nameInput = inputs[0];
+  const hoursInput = inputs[1];
+
+  const applyRoleBehavior = () => {
+    const selectedRole = String(roleSelect.value || "");
+    const isEvent = selectedRole === "Event Staff";
+    if (isEvent) {
+      hoursInput.value = "";
+      hoursInput.disabled = true;
+      hoursInput.placeholder = "—";
+    } else {
+      hoursInput.disabled = false;
+      hoursInput.placeholder = "0";
+    }
+  };
+
+  const normalizedRole = ["Event Staff", "Shift Manager", "Bartender"].includes(role) ? role : "Bartender";
+  roleSelect.value = normalizedRole === "Shift Manager" && hasExistingShiftManager(tr) ? "Bartender" : normalizedRole;
+  let previousRole = roleSelect.value;
+
+  roleSelect.addEventListener("change", () => {
+    const nextRole = String(roleSelect.value || "");
+    if (nextRole === "Shift Manager" && hasExistingShiftManager(tr)) {
+      roleSelect.value = previousRole;
+      showToast("Only one Shift Manager allowed.");
+      setStatus("Only one Shift Manager is allowed.", "error");
+      applyRoleBehavior();
+      return;
+    }
+
+    previousRole = roleSelect.value;
+    applyRoleBehavior();
+    markUncalculated();
+    saveDraft();
+  });
+
+  applyRoleBehavior();
+
   enableNameAutocomplete(nameInput);
   enableArrowBoxNavigation(nameInput);
+  enableArrowBoxNavigation(hoursInput);
   enforceLettersOnly(nameInput);
   tr.querySelector("button").onclick = () => {
     tr.remove();
     markUncalculated();
     saveDraft();
   };
-  $("eventBody").appendChild(tr);
+  $("staffBody").appendChild(tr);
   if (focusName) nameInput.focus();
   markUncalculated();
   saveDraft();
 }
 
-function addBartender(name="", hours="", focusName=true){
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td><input placeholder="Bartender" value="${escapeHtml(name)}"></td>
-    <td><input type="number" step="0.25" value="${escapeHtml(hours)}"></td>
-    <td class="right"><button class="remove" title="Remove">✕</button></td>
-  `;
-  const inputs = tr.querySelectorAll("input");
-  enableNameAutocomplete(inputs[0]);
-  enableArrowBoxNavigation(inputs[0]);
-  enableArrowBoxNavigation(inputs[1]);
-  enforceLettersOnly(inputs[0]);
-  tr.querySelector("button").onclick = () => {
-    tr.remove();
-    markUncalculated();
-    saveDraft();
-  };
-  $("peopleBody").appendChild(tr);
-  if (focusName) inputs[0].focus();
-  markUncalculated();
-  saveDraft();
-}
+function getUnifiedStaffRows(){
+  const body = $("staffBody");
+  if (!body) return [];
 
-function setShiftManagerRow(name="", hours=""){
-  const body = $("peopleBody");
-  if (!body) return;
-
-  let tr = body.querySelector('tr[data-staff-role="shift-manager"]');
-  if (!tr) {
-    tr = document.createElement("tr");
-    tr.dataset.staffRole = "shift-manager";
-    tr.innerHTML = `
-      <td><input placeholder="Shift Manager" value=""></td>
-      <td><input type="number" step="0.25" value=""></td>
-      <td class="right"></td>
-    `;
+  return [...body.querySelectorAll("tr")].map((tr, idx) => {
+    const role = String(tr.querySelector(".staff-role")?.value || "Bartender").trim();
     const inputs = tr.querySelectorAll("input");
-    enableNameAutocomplete(inputs[0]);
-    enableArrowBoxNavigation(inputs[0]);
-    enableArrowBoxNavigation(inputs[1]);
-    enforceLettersOnly(inputs[0]);
-  }
+    const name = normalizeName(inputs[0]?.value || "");
+    const hoursRaw = inputs[1]?.value || "";
+    const hours = role === "Event Staff" ? 0 : (+hoursRaw || 0);
 
-  const inputs = tr.querySelectorAll("input");
-  inputs[0].value = String(name || "");
-  inputs[1].value = String(hours || "");
-  body.prepend(tr);
+    return { role, name: name || `${role} ${idx + 1}`, hours, tr, inputs };
+  });
 }
 
 function showToast(message){
@@ -1522,7 +1552,7 @@ function enableArrowBoxNavigation(input){
     if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
 
     const tbody = input.closest("tbody");
-    if (!tbody || (tbody.id !== "eventBody" && tbody.id !== "peopleBody")) return;
+    if (!tbody || tbody.id !== "staffBody") return;
 
     if (
       (e.key === "ArrowUp" || e.key === "ArrowDown") &&
@@ -1555,29 +1585,16 @@ function isValidTypedName(value){
 }
 
 function getDraft(){
-  const eventStaff = [...$("eventBody").querySelectorAll("input")].map(i => normalizeName(i.value));
-  const shiftRow = $("peopleBody").querySelector('tr[data-staff-role="shift-manager"]');
-  const shiftInputs = shiftRow ? shiftRow.querySelectorAll("input") : [];
-  const shiftManager = {
-    name: normalizeName(shiftInputs[0]?.value || ""),
-    hours: shiftInputs[1]?.value || ""
-  };
-  const bartenders = [...$("peopleBody").querySelectorAll("tr")]
-    .filter(tr => tr.dataset.staffRole !== "shift-manager")
-    .map(tr => {
-    const inputs = tr.querySelectorAll("input");
-    return {
-      name: normalizeName(inputs[0].value),
-      hours: inputs[1].value || ""
-    };
-  });
+  const staff = getUnifiedStaffRows().map(row => ({
+    role: row.role,
+    name: row.name,
+    hours: row.role === "Event Staff" ? "" : String(row.hours || "")
+  }));
 
   return {
     pot: $("pot").value || "",
     notes: $("notes").value || "",
-    eventStaff,
-    shiftManager,
-    bartenders
+    staff
   };
 }
 
@@ -1605,20 +1622,29 @@ function restoreDraft(){
     $("pot").value = "$" + (potDigits ? Number(potDigits).toLocaleString() : "");
     $("notes").value = String(draft.notes || "");
 
-    $("eventBody").innerHTML = "";
-    $("peopleBody").innerHTML = "";
+    $("staffBody").innerHTML = "";
 
-    const events = Array.isArray(draft.eventStaff) ? draft.eventStaff : [];
-    const shift = draft.shiftManager && typeof draft.shiftManager === "object" ? draft.shiftManager : {};
-    const bartenders = Array.isArray(draft.bartenders) ? draft.bartenders : [];
-
-    events.forEach(name => addEventStaff(normalizeName(name)));
-    setShiftManagerRow(normalizeName(shift.name || ""), shift.hours || "");
-
-    if (bartenders.length) {
-      bartenders.forEach(b => addBartender(normalizeName(b.name || ""), b.hours || ""));
+    if (Array.isArray(draft.staff)) {
+      draft.staff.forEach(row => {
+        const role = String(row?.role || "Bartender");
+        const name = normalizeName(row?.name || "");
+        const hours = role === "Event Staff" ? "" : (row?.hours || "");
+        addStaff(role, name, hours, false);
+      });
     } else {
-      addBartender();
+      const events = Array.isArray(draft.eventStaff) ? draft.eventStaff : [];
+      const shift = draft.shiftManager && typeof draft.shiftManager === "object" ? draft.shiftManager : {};
+      const bartenders = Array.isArray(draft.bartenders) ? draft.bartenders : [];
+
+      events.forEach(name => addStaff("Event Staff", normalizeName(name), "", false));
+      if (shift.name || shift.hours) {
+        addStaff("Shift Manager", normalizeName(shift.name || ""), shift.hours || "", false);
+      }
+      bartenders.forEach(b => addStaff("Bartender", normalizeName(b.name || ""), b.hours || "", false));
+    }
+
+    if (!$("staffBody").children.length) {
+      addStaff("Bartender", "", "", false);
     }
 
     return true;
@@ -1894,8 +1920,7 @@ async function sendReceipt(){
 function hardReset(){
   $("pot").value = "$";
   $("notes").value = "";
-  $("eventBody").innerHTML = "";
-  $("peopleBody").innerHTML = "";
+  $("staffBody").innerHTML = "";
   $("resultsBody").innerHTML = "";
   $("resultsCard").style.display = "block";
   $("resultsEmpty").style.display = "block";
@@ -1903,8 +1928,7 @@ function hardReset(){
   setSendLoading(false);
   setStatus("");
   clearDraft();
-  setShiftManagerRow("", "");
-  addBartender("", "", false);
+  addStaff("Bartender", "", "", false);
 }
 
 enforceMoneyInput($("pot"));
@@ -1917,14 +1941,11 @@ window.addEventListener("load", () => {
 $("pot").addEventListener("input", saveDraft);
 $("notes").addEventListener("input", saveDraft);
 $("pot").addEventListener("input", markUncalculated);
-$("eventBody").addEventListener("input", saveDraft);
-$("peopleBody").addEventListener("input", saveDraft);
-$("eventBody").addEventListener("input", markUncalculated);
-$("peopleBody").addEventListener("input", markUncalculated);
+$("staffBody").addEventListener("input", saveDraft);
+$("staffBody").addEventListener("input", markUncalculated);
 
 if (!restoreDraft()) {
-  setShiftManagerRow("", "");
-  addBartender("", "", false);
+  addStaff("Bartender", "", "", false);
 }
 
 initNameSuggestions();
@@ -1934,8 +1955,7 @@ initManagerGate();
 $("resultsCard").style.display = "block";
 $("resultsEmpty").style.display = "block";
 
-$("addEvent").onclick = () => addEventStaff();
-$("addBartender").onclick = () => addBartender();
+$("addStaff").onclick = () => addStaff();
 $("reset").onclick = hardReset;
 
 $("calc").onclick = () => {
@@ -1949,45 +1969,33 @@ $("calc").onclick = () => {
   if (pot <= 0) return;
 
   let hasInvalidName = false;
-  const eventStaff = [...$("eventBody").querySelectorAll("input")]
-    .map((i, idx) => {
-      const cleaned = normalizeName(i.value || "");
-      i.value = cleaned;
-      if (cleaned && !isValidTypedName(cleaned)) {
-        hasInvalidName = true;
-      }
-      return cleaned || `Event Staff ${idx+1}`;
-    });
+  const staffRows = getUnifiedStaffRows();
+  const roleCounts = { "Event Staff": 0, "Shift Manager": 0, "Bartender": 0 };
+  const normalizedRows = staffRows.map(row => {
+    const role = ["Event Staff", "Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
+    roleCounts[role] = (roleCounts[role] || 0) + 1;
 
-  const shiftRow = $("peopleBody").querySelector('tr[data-staff-role="shift-manager"]');
-  const shiftInputs = shiftRow ? shiftRow.querySelectorAll("input") : [];
-  const shiftManagerName = normalizeName(shiftInputs[0]?.value || "");
-  if (shiftInputs[0]) shiftInputs[0].value = shiftManagerName;
-  const shiftManagerHours = +(shiftInputs[1]?.value || 0);
-  if (shiftManagerName && !isValidTypedName(shiftManagerName)) {
-    hasInvalidName = true;
-  }
+    const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
+    row.inputs[0].value = cleanedName;
+    if (cleanedName && !isValidTypedName(cleanedName)) {
+      hasInvalidName = true;
+    }
 
-  const bartenders = [...$("peopleBody").querySelectorAll("tr")]
-    .filter(tr => tr.dataset.staffRole !== "shift-manager")
-    .map((tr, idx) => {
-      const i = tr.querySelectorAll("input");
-      const cleanedName = normalizeName(i[0].value || "");
-      i[0].value = cleanedName;
-      if (cleanedName && !isValidTypedName(cleanedName)) {
-        hasInvalidName = true;
-      }
-      return { name: cleanedName || `Bartender ${idx+1}`, hours: +i[1].value || 0 };
-    })
-    .filter(b => b.hours > 0);
-
-  const payoutPeople = [];
-  if (shiftManagerHours > 0) {
-    payoutPeople.push({ role: "Shift Manager", name: shiftManagerName || "Shift Manager", hours: shiftManagerHours });
-  }
-  bartenders.forEach(b => {
-    payoutPeople.push({ role: "Bartender", name: b.name, hours: b.hours });
+    const fallbackName = `${role} ${roleCounts[role]}`;
+    return {
+      role,
+      name: cleanedName || fallbackName,
+      hours: role === "Event Staff" ? 0 : (+row.inputs[1]?.value || 0)
+    };
   });
+
+  const eventStaff = normalizedRows.filter(r => r.role === "Event Staff").map(r => r.name);
+  const payoutPeople = normalizedRows.filter(r => r.role !== "Event Staff" && r.hours > 0);
+
+  if ((roleCounts["Shift Manager"] || 0) > 1) {
+    setStatus("Only one Shift Manager is allowed.", "error");
+    return;
+  }
 
   if (hasInvalidName) {
     setStatus("Names must contain at least 2 letters.", "error");
