@@ -126,6 +126,8 @@
       align-items:center;
       justify-content:center;
       padding:20px;
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
     }
     .pin-gate-card{
       width:100%;
@@ -136,6 +138,8 @@
       padding:28px;
       box-shadow:0 16px 40px rgba(0,0,0,0.08);
       text-align:center;
+      max-height:calc(100dvh - 40px);
+      overflow-y:auto;
     }
     .pin-gate-logo-row{
       display:flex;
@@ -280,9 +284,22 @@
     }
 
     @media (max-width: 720px){
-      .pin-venue-buttons{
-        grid-template-columns:1fr;
+      .pin-gate{
+        align-items:flex-start;
+        padding:10px;
       }
+      .pin-gate-card{
+        padding:18px;
+        border-radius:18px;
+        max-height:calc(100dvh - 20px);
+      }
+      .pin-venue-buttons{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+        gap:8px;
+      }
+      .pin-venue-option{ min-height:110px; }
+      .pin-venue-photo{ height:110px; }
+      .pin-venue-name{ font-size:18px; padding:10px 8px; }
     }
 
     .card{
