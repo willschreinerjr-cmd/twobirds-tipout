@@ -320,6 +320,27 @@
     .status{ font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; }
     .status.success{ color:var(--green-dark); }
     .status.error{ color:#b91c1c; }
+    .send-loading{
+      display:none;
+      width:100%;
+      height:10px;
+      border-radius:999px;
+      background:#e5e7eb;
+      overflow:hidden;
+      margin-top:10px;
+    }
+    .send-loading-bar{
+      width:40%;
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg,#1f9d55,#34d399);
+      animation:sendLoad 1s ease-in-out infinite;
+      transform:translateX(-100%);
+    }
+    @keyframes sendLoad{
+      0%{ transform:translateX(-100%); }
+      100%{ transform:translateX(250%); }
+    }
 
     button{
       padding:14px 18px; font-size:16px; border-radius:14px; border:1px solid var(--border);
@@ -551,6 +572,7 @@
         <div id="venueButtons" class="venue-actions"></div>
       </div>
       <div id="sendStatus" class="status"></div>
+      <div id="sendLoading" class="send-loading"><div class="send-loading-bar"></div></div>
     </div>
 
     <div class="card">
@@ -623,68 +645,79 @@ const VENUE_PHOTO_BOOK = {
 };
 const VENUE_MATCH_RADIUS_METERS = 5000;
 const STAFF_NAMES = [
-  "Alex Kerkman",
-  "Alexis Madau",
-  "Andrew Pecunia",
-  "Anya Kusnierewicz",
-  "Ari Manta",
-  "Ashley Brunette",
-  "Avery Diercks",
-  "Will Schreiner",
-  "Brandon James",
-  "Britt Johnson",
-  "Caleb Lollis",
-  "Calvin Giese",
-  "Cam Hall",
-  "Cam Rusboldt",
-  "Cassie DeVillers",
-  "Chase Barthel",
-  "Claire Bjorgo",
-  "Dana Folger",
-  "Danny Graybow",
-  "Duleon Schneider",
-  "Emily York",
-  "Emma Lundberg",
-  "Grace Herrmann",
-  "Haley DeSart",
-  "Harrison Chalupka",
-  "Ian O’Connor",
-  "Isaac Moburg",
-  "Jackie Stecker",
-  "Jackson Sharpee",
-  "Jess Stark",
-  "Jesse Hertzke",
-  "JJ Ingrassia",
-  "Joah Rivas",
-  "Joe Baumann",
-  "Joyce Walton",
-  "Julianne Dollard",
-  "Kirk Mngodo",
-  "Kristiana Longe",
-  "Lacey Kremer",
-  "Leah Maher",
-  "Lesley Nicholas",
-  "Lily Correa Rivas",
-  "Luke Schreiner",
-  "Manolo Delgato",
-  "Maria Stamos",
-  "Milo Wehmeyer",
-  "Natalie Dibert",
+  "Theodore Adam",
   "Noah Aitch",
   "Olivia Bartels",
-  "Olivia Gaba",
-  "Olivia Rincon",
+  "Chase Barthel",
+  "Joe Baumann",
+  "Claire Bjorgo",
+  "Jack Brenning",
+  "Ashley Brunette",
+  "Elly Buettner",
+  "Harrison Chalupka",
+  "Lily Correa Rivas",
+  "Manolo Delgato",
+  "Haley DeSart",
+  "Cassandra DeVillers",
+  "Avery Diercks",
+  "Julianne Dollard",
+  "Ashley Dorshak",
+  "Tayor Duellman",
   "Renee Ehlers",
-  "Rubin Steward",
-  "Sabrina Ruffalo",
+  "Dana Folger",
+  "Olivia Gaba",
   "Sal Gauthier",
+  "Calvin Giese",
+  "Danny Graybow",
+  "Ivory Green",
+  "Cameron Hall",
+  "Grace Herrmann",
+  "Jesse Hertzke",
+  "Katherine Hudson",
+  "JJ Ingrassia",
+  "Brandon James",
+  "Brittany Johnson",
+  "Johns Kearns",
+  "Alex Kerkman",
+  "Lacey Kremer",
+  "Anya Kusnierewicz",
+  "Kirk Kutz",
+  "Caleb Lollis",
+  "Kristiana Longe",
+  "Emma Lundberg",
+  "Alexis Madau",
+  "Leah Maher",
+  "Ari Manta",
+  "Jake Mau",
   "Shawn McDaniel",
-  "Shifra Rothenberg",
+  "Ben McGill",
+  "Kira Mngodo",
+  "Isaac Moburg",
+  "Lesley Nicholas",
+  "Kacey Ninmann",
   "Sophia Norenberg",
-  "Tedros Adam",
-  "Ty Tague",
-  "Victoria Kieselhorst",
-  "Will Timmel"
+  "Ian O’Connor",
+  "Maria Olsson",
+  "Bradley Parsons",
+  "Andrew Pecunia",
+  "Olivia Rincon",
+  "Joah Rivas",
+  "Shifra Rothenberg",
+  "Sabrina Ruffalo",
+  "Cameron Rusboldt",
+  "Duleon Schneider",
+  "Will Schreiner",
+  "Luke Schreiner",
+  "Jackson Sharpee",
+  "Maria Stamos",
+  "Jacqueline Stecker",
+  "Rubin Steward",
+  "Tylar Tague",
+  "Will Timmel",
+  "Ellen Trombla",
+  "Milo Wehmeyer",
+  "Steve Wyrobek",
+  "Emily York"
 ];
 const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y/edit?usp=sharing";
 const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
@@ -712,6 +745,7 @@ const venueGeocodeCache = new Map();
 let detectedVenue = "";
 let detectedVenueReason = "";
 let authenticatedManagerName = "";
+let sendingReceipt = false;
 
 function setManagerWelcome(name){
   const badge = $("managerWelcome");
@@ -1520,6 +1554,12 @@ function setStatus(msg, type=""){
   el.className = `status ${type}`.trim();
 }
 
+function setSendLoading(isLoading){
+  const bar = $("sendLoading");
+  if (!bar) return;
+  bar.style.display = isLoading ? "block" : "none";
+}
+
 function hideVenuePicker(){
   const picker = $("venuePicker");
   const buttons = $("venueButtons");
@@ -1702,7 +1742,9 @@ async function postToAppsScript(endpoint, payload){
 }
 
 async function sendReceipt(){
+  if (sendingReceipt) return;
   setStatus("");
+  setSendLoading(false);
   hideVenuePicker();
 
   if (!latestReceipt){
@@ -1746,6 +1788,9 @@ async function sendReceipt(){
   }
 
   try {
+    sendingReceipt = true;
+    setSendLoading(true);
+    setCanSendReceipt(false);
     setStatus("Sending receipt...", "");
     const response = await postToAppsScript(RECEIPT_ENDPOINT, receipt);
     if (Number(response.replacedRows || 0) > 0){
@@ -1756,6 +1801,10 @@ async function sendReceipt(){
   } catch (err) {
     const msg = err && err.message ? err.message : "Send failed. Verify Apps Script deployment and access to the shared sheet.";
     setStatus(msg, "error");
+  } finally {
+    sendingReceipt = false;
+    setSendLoading(false);
+    setCanSendReceipt(!!latestReceipt);
   }
 }
 
@@ -1769,6 +1818,7 @@ function hardReset(){
   $("resultsEmpty").style.display = "block";
   latestReceipt = null;
   setCanSendReceipt(false);
+  setSendLoading(false);
   setStatus("");
   clearDraft();
   setShiftManagerRow("", "");
