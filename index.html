@@ -1162,8 +1162,9 @@ function animateVenueSwitch(select, venueName){
 
   /* The exact spot the real text will render */
   const isMobile = window.innerWidth <= 720;
-  const textX = selectRect.left + padLeft + (isMobile ? 2 : 5);
-  const textY = selectRect.top + padTop + (isMobile ? 2 : -2);
+  if (isMobile) return;
+  const textX = selectRect.left + padLeft + 5;
+  const textY = selectRect.top + padTop - 2;
 
   /* Create flying label */
   const fly = document.createElement("span");
