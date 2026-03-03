@@ -115,6 +115,30 @@
       cursor:pointer;
       appearance:auto;
     }
+    .venue-fly-label{
+      position:fixed;
+      z-index:100000;
+      font-size:14px;
+      font-weight:700;
+      color:#1f2937;
+      pointer-events:none;
+      white-space:nowrap;
+      opacity:1;
+      transition:transform 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.4s ease;
+    }
+    .venue-fly-label.flying{
+      opacity:0;
+      transform:scale(0.92);
+    }
+    .venue-select-wrap{
+      overflow:hidden;
+    }
+    .venue-select-wrap .venue-select{
+      transition:opacity 0.25s ease;
+    }
+    .venue-select-wrap .venue-select.switching{
+      opacity:0;
+    }
     .venue-photo-card{
       display:none;
       padding:12px;
@@ -1125,8 +1149,51 @@ function initVenueSelect(){
       return;
     }
     detectedVenue = venue;
+    animateVenueSwitch(select, venue);
     setVenuePhoto(venue);
   });
+}
+
+function animateVenueSwitch(select, venueName){
+  const selectRect = select.getBoundingClientRect();
+  const selectStyle = getComputedStyle(select);
+  const padLeft = parseFloat(selectStyle.paddingLeft) || 0;
+  const padTop = parseFloat(selectStyle.paddingTop) || 0;
+
+  /* The exact spot the real text will render */
+  const textX = selectRect.left + padLeft + 5;
+  const textY = selectRect.top + padTop - 2;
+
+  /* Create flying label */
+  const fly = document.createElement("span");
+  fly.className = "venue-fly-label";
+  fly.textContent = venueName;
+  document.body.appendChild(fly);
+
+  /* Start position: below the select */
+  const startX = textX;
+  const startY = selectRect.bottom + 10;
+
+  fly.style.left = startX + "px";
+  fly.style.top = startY + "px";
+
+  /* Fade out the real select text */
+  select.classList.add("switching");
+
+  requestAnimationFrame(() => {
+    /* Fly to exact text position */
+    fly.style.transform = `translateY(${textY - startY}px)`;
+  });
+
+  /* After the fly lands, hold it there and reveal the real select underneath */
+  setTimeout(() => {
+    select.classList.remove("switching");
+    /* Keep fly visible briefly so the swap is seamless, then dissolve it */
+    setTimeout(() => {
+      fly.classList.add("flying");
+      setTimeout(() => fly.remove(), 420);
+    }, 60);
+  }, 400);
 }
 
 function getVenuePhotoCandidates(venueName){
