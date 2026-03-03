@@ -159,11 +159,11 @@
     .pin-gate-card{
       grid-area:1 / 1;
       width:100%;
-      max-width:560px;
+      max-width:660px;
       background:#fff;
       border:1px solid var(--border);
       border-radius:24px;
-      padding:28px;
+      padding:34px;
       box-shadow:0 16px 40px rgba(0,0,0,0.08);
       text-align:center;
       max-height:calc(100vh - 40px);
@@ -365,14 +365,21 @@
 
     @media (max-width: 720px){
       .pin-gate{
-        align-items:flex-start;
-        padding:10px;
+        align-items:stretch;
+        padding:0;
       }
       .pin-gate-card{
-        padding:18px;
-        border-radius:18px;
-        max-height:calc(100vh - 20px);
-        max-height:calc(100dvh - 20px);
+        padding:20px;
+        border-radius:0;
+        border:none;
+        box-shadow:none;
+        max-width:100%;
+        min-height:100vh;
+        min-height:100dvh;
+        max-height:none;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
       }
       .pin-venue-buttons{
         gap:8px;
