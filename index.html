@@ -381,21 +381,18 @@
 
     @media (max-width: 720px){
       .pin-gate{
-        align-items:stretch;
-        padding:0;
+        align-items:center;
+        padding:12px;
       }
       .pin-gate-card{
-        padding:20px;
-        border-radius:0;
-        border:none;
-        box-shadow:none;
+        padding:22px;
+        border-radius:18px;
+        border:1px solid var(--border);
+        box-shadow:0 12px 32px rgba(0,0,0,0.08);
         max-width:100%;
-        min-height:100vh;
-        min-height:100dvh;
-        max-height:none;
-        display:flex;
-        flex-direction:column;
-        justify-content:center;
+        min-height:0;
+        max-height:calc(100vh - 24px);
+        max-height:calc(100dvh - 24px);
       }
       .pin-venue-buttons{
         gap:8px;
