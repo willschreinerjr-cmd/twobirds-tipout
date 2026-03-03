@@ -286,8 +286,8 @@
     }
     .pin-gate-error.fade-out{ opacity:0; }
     .pin-venue-buttons{
-      display:grid;
-      grid-template-columns:repeat(2, minmax(0, 1fr));
+      display:flex;
+      flex-direction:column;
       gap:10px;
       margin-top:10px;
     }
@@ -318,11 +318,13 @@
       border:1px solid var(--border);
       border-radius:14px;
       background:#fff;
-      min-height:150px;
+      min-height:0;
       padding:0;
       cursor:pointer;
+      display:flex;
+      align-items:stretch;
       transition:transform var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
-      box-shadow:0 6px 18px rgba(0,0,0,0.08);
+      box-shadow:0 4px 14px rgba(0,0,0,0.07);
     }
     .pin-venue-option:hover{
       transform:translateY(-2px);
@@ -337,34 +339,28 @@
       opacity:0.9;
     }
     .pin-venue-option::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:linear-gradient(180deg,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.55) 100%);
-      pointer-events:none;
+      display:none;
     }
     .pin-venue-photo{
-      width:100%;
-      height:150px;
+      width:100px;
+      min-height:72px;
       object-fit:cover;
       display:block;
       background:#eef0f3;
+      flex-shrink:0;
     }
     .pin-venue-name{
-      position:absolute;
-      left:0;
-      right:0;
-      bottom:0;
-      z-index:1;
-      display:block;
-      width:100%;
-      padding:14px 12px;
-      text-align:center;
-      font-size:24px;
-      font-weight:900;
-      color:#fff;
-      text-shadow:0 2px 8px rgba(0,0,0,0.65);
-      letter-spacing:0.2px;
+      position:static;
+      display:flex;
+      align-items:center;
+      flex:1;
+      padding:14px 18px;
+      text-align:left;
+      font-size:20px;
+      font-weight:800;
+      color:#1f2937;
+      text-shadow:none;
+      letter-spacing:0.1px;
     }
 
     @media (max-width: 720px){
@@ -379,7 +375,6 @@
         max-height:calc(100dvh - 20px);
       }
       .pin-venue-buttons{
-        grid-template-columns:repeat(2, minmax(0, 1fr));
         gap:8px;
       }
       .pin-key[data-digit]{
@@ -395,9 +390,9 @@
         border-color:var(--border);
         color:#1f2937;
       }
-      .pin-venue-option{ min-height:110px; }
-      .pin-venue-photo{ height:110px; }
-      .pin-venue-name{ font-size:18px; padding:10px 8px; }
+      .pin-venue-option{ min-height:0; }
+      .pin-venue-photo{ width:80px; min-height:60px; }
+      .pin-venue-name{ font-size:17px; padding:12px 14px; }
       button:hover,
       .pin-venue-option:hover,
       .name-suggestion-item:hover{
