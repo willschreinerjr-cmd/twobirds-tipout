@@ -476,7 +476,8 @@
     .actions{ gap:12px; }
     .actions button{ min-height:48px; }
 
-    .status{ font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; opacity:1; transition:opacity var(--motion-panel) var(--motion-ease); }
+    .status{ font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; opacity:0; transition:opacity 0.3s ease; }
+    .status.visible{ opacity:1; }
     .status.success{ color:var(--green-dark); }
     .status.error{ color:#b91c1c; }
     .status.fade-out{ opacity:0; }
@@ -2142,25 +2143,32 @@ function setStatus(msg, type="", options = {}){
     clearTimeout(statusClearTimer);
     statusClearTimer = null;
   }
-  el.classList.remove("fade-out");
-  el.style.opacity = "1";
+
+  el.classList.remove("fade-out", "visible");
   el.textContent = msg;
   el.className = `status ${type}`.trim();
+
+  if (!msg) return;
+
+  requestAnimationFrame(() => {
+    el.classList.add("visible");
+  });
 
   const autoHideMs = Number(
     options?.autoHideMs ?? (type === "error" ? 3200 : 0)
   );
-  if (!msg || autoHideMs <= 0) return;
+  if (autoHideMs <= 0) return;
 
   const fadeDurationMs = 350;
   const fadeDelayMs = Math.max(0, autoHideMs - fadeDurationMs);
   statusFadeTimer = setTimeout(() => {
-    el.style.transition = `opacity ${fadeDurationMs}ms var(--motion-ease)`;
-    el.style.opacity = "0";
+    el.classList.remove("visible");
     el.classList.add("fade-out");
   }, fadeDelayMs);
   statusClearTimer = setTimeout(() => {
-    setStatus("");
+    el.classList.remove("fade-out", "visible");
+    el.textContent = "";
+    el.className = "status";
   }, fadeDelayMs + fadeDurationMs + 40);
 }
 
