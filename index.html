@@ -1423,6 +1423,16 @@ function initManagerGate(){
     errorEl.classList.remove("fade-out", "visible");
     errorEl.textContent = "";
   };
+  const fadeOutError = () => {
+    if (!errorEl.textContent) return;
+    if (pinErrorFadeTimer) clearTimeout(pinErrorFadeTimer);
+    if (pinErrorClearTimer) clearTimeout(pinErrorClearTimer);
+    errorEl.classList.remove("visible");
+    errorEl.classList.add("fade-out");
+    pinErrorClearTimer = setTimeout(() => {
+      clearError();
+    }, 340);
+  };
   const showError = (msg, autoHideMs = 3200) => {
     if (pinErrorFadeTimer) {
       clearTimeout(pinErrorFadeTimer);
@@ -1468,7 +1478,7 @@ function initManagerGate(){
     if (!/^\d$/.test(String(digit || ""))) return;
     if (pinValue.length >= 4) return;
     setPin(pinValue + digit);
-    clearError();
+    fadeOutError();
     if (pinValue.length === 4) {
       tryUnlock();
     }
@@ -1477,7 +1487,7 @@ function initManagerGate(){
   const deleteDigit = () => {
     if (!pinValue) return;
     setPin(pinValue.slice(0, -1));
-    clearError();
+    fadeOutError();
   };
 
   keypad.addEventListener("click", e => {
@@ -1488,7 +1498,7 @@ function initManagerGate(){
 
   clearBtn.onclick = () => {
     setPin("");
-    clearError();
+    fadeOutError();
   };
 
   deleteBtn.onclick = deleteDigit;
