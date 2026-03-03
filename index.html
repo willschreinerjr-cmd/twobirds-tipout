@@ -484,6 +484,18 @@
       border-color:#111827;
       color:#111827;
     }
+    .staff-role option[value="Event Staff"]{
+      background:#fafafa;
+      color:#4b5563;
+    }
+    .staff-role option[value="Shift Manager"]{
+      background:#f3f4f6;
+      color:#065f46;
+    }
+    .staff-role option[value="Bartender"]{
+      background:#fff;
+      color:#111827;
+    }
     .staff-row[data-role="Event Staff"] td:first-child{ box-shadow:inset 3px 0 0 #9ca3af; }
     .staff-row[data-role="Shift Manager"] td:first-child{ box-shadow:inset 3px 0 0 var(--green-dark); }
     .staff-row[data-role="Bartender"] td:first-child{ box-shadow:inset 3px 0 0 #111827; }
@@ -1721,9 +1733,9 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
   tr.innerHTML = `
     <td>
       <select class="staff-role">
-        <option value="Event Staff">Event Staff</option>
         <option value="Shift Manager">Shift Manager</option>
         <option value="Bartender">Bartender</option>
+        <option value="Event Staff">Event Staff</option>
       </select>
     </td>
     <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
@@ -2094,6 +2106,9 @@ function getMissingCalculationMessage(){
   if (!staffRows.length) {
     pushMissing("staff");
   } else {
+    const hasShiftManager = staffRows.some(row => row.role === "Shift Manager");
+    if (!hasShiftManager) pushMissing("Shift Manager");
+
     let hasMissingName = false;
     let hasMissingHours = false;
     let hasInvalidName = false;
