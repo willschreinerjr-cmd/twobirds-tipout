@@ -232,10 +232,12 @@
       border-radius:50%;
       border:2px solid #9ca3af;
       background:transparent;
+      transition:border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
     }
     .pin-dot.filled{
       border-color:var(--green);
       background:var(--green);
+      transform:scale(1.15);
     }
     .pin-keypad{
       display:grid;
@@ -272,8 +274,22 @@
       color:#b91c1c;
       font-weight:700;
       font-size:14px;
-      opacity:1;
-      transition:opacity var(--motion-panel) var(--motion-ease);
+      opacity:0;
+      transition:opacity 0.3s ease;
+    }
+    .pin-gate-error.visible{ opacity:1; }
+    .pin-gate-error.fade-out{ opacity:0; }
+
+    @keyframes pinShake{
+      0%, 100%{ transform:translateX(0); }
+      15%{ transform:translateX(-6px); }
+      30%{ transform:translateX(5px); }
+      45%{ transform:translateX(-4px); }
+      60%{ transform:translateX(3px); }
+      75%{ transform:translateX(-2px); }
+    }
+    .pin-display.shake{
+      animation:pinShake 0.45s ease;
     }
     .pin-gate-card.entering .pin-gate-logo-row,
     .pin-gate-card.entering .pin-gate-title,
@@ -1407,20 +1423,32 @@ function initManagerGate(){
       clearTimeout(pinErrorClearTimer);
       pinErrorClearTimer = null;
     }
-    errorEl.classList.remove("fade-out");
-    errorEl.style.opacity = "1";
+    errorEl.classList.remove("fade-out", "visible");
     errorEl.textContent = "";
   };
   const showError = (msg, autoHideMs = 3200) => {
-    clearError();
+    if (pinErrorFadeTimer) {
+      clearTimeout(pinErrorFadeTimer);
+      pinErrorFadeTimer = null;
+    }
+    if (pinErrorClearTimer) {
+      clearTimeout(pinErrorClearTimer);
+      pinErrorClearTimer = null;
+    }
+    errorEl.classList.remove("fade-out");
     errorEl.textContent = String(msg || "").trim();
-    if (!errorEl.textContent || autoHideMs <= 0) return;
+    if (!errorEl.textContent) { clearError(); return; }
+
+    requestAnimationFrame(() => {
+      errorEl.classList.add("visible");
+    });
+
+    if (autoHideMs <= 0) return;
 
     const fadeDurationMs = 350;
     const fadeDelayMs = Math.max(0, autoHideMs - fadeDurationMs);
     pinErrorFadeTimer = setTimeout(() => {
-      errorEl.style.transition = `opacity ${fadeDurationMs}ms var(--motion-ease)`;
-      errorEl.style.opacity = "0";
+      errorEl.classList.remove("visible");
       errorEl.classList.add("fade-out");
     }, fadeDelayMs);
     pinErrorClearTimer = setTimeout(() => {
@@ -1493,6 +1521,8 @@ function initManagerGate(){
       startPostPinVenueFlow(auth.managerName);
     } catch (err) {
       showError(err && err.message ? err.message : "Invalid manager PIN.");
+      pinDisplay.classList.add("shake");
+      pinDisplay.addEventListener("animationend", () => pinDisplay.classList.remove("shake"), { once: true });
       setPin("");
       unlocking = false;
       setPinInputsDisabled(false);
