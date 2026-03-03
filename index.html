@@ -2144,11 +2144,27 @@ function setStatus(msg, type="", options = {}){
     statusClearTimer = null;
   }
 
+  /* Clear request — fade out whatever is showing */
+  if (!msg) {
+    if (el.textContent && el.classList.contains("visible")) {
+      el.classList.remove("visible");
+      el.classList.add("fade-out");
+      statusClearTimer = setTimeout(() => {
+        el.classList.remove("fade-out");
+        el.textContent = "";
+        el.className = "status";
+      }, 340);
+    } else {
+      el.classList.remove("fade-out", "visible");
+      el.textContent = "";
+      el.className = "status";
+    }
+    return;
+  }
+
   el.classList.remove("fade-out", "visible");
   el.textContent = msg;
   el.className = `status ${type}`.trim();
-
-  if (!msg) return;
 
   requestAnimationFrame(() => {
     el.classList.add("visible");
