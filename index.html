@@ -755,7 +755,7 @@
       </div>
       <h2 class="pin-gate-title">Select Venue</h2>
       <p id="venueGateGreeting" class="pin-gate-greeting ui-fade is-hidden" style="display:none;"></p>
-      <p id="venueGateSubtitle" class="pin-gate-subtitle">Detecting your location...</p>
+      <p id="venueGateSubtitle" class="pin-gate-subtitle">Select the venue you're currently at.</p>
       <div id="venueGateLoading" class="venue-gate-loading ui-fade is-hidden" style="display:none;">
         <div class="venue-gate-loading-bar"></div>
       </div>
@@ -863,14 +863,6 @@ function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
 
 const VENUES = ["Ivy House", "Starling", "Rivulet", "PSP", "Society"];
-const VENUE_ADDRESS_BOOK = {
-  "Ivy House": "South Barclay Street, Milwaukee, WI",
-  "Starling": "102 N Water St, Milwaukee, WI 53202",
-  "Rivulet": "309 N Water St, Milwaukee, WI 53202",
-  "PSP": "1420 East Park Place, Milwaukee, WI",
-  "Society": "910 N Doctor M.L.K Jr Dr, Milwaukee, WI 53203"
-};
-const VENUE_COORDINATES = {};
 const VENUE_PHOTO_BOOK = {
   "Ivy House": "IvyHouse.jpg",
   "Starling": "Starling.jpg",
@@ -878,7 +870,6 @@ const VENUE_PHOTO_BOOK = {
   "PSP": "PSP.webp",
   "Society": "Society.jpg"
 };
-const VENUE_MATCH_RADIUS_METERS = 5000;
 const STAFF_NAMES = [
   "Theodore Adam",
   "Noah Aitch",
@@ -964,9 +955,7 @@ let latestReceipt = null;
 let activeNameInput = null;
 let activeNameSuggestions = [];
 let activeNameSuggestionIndex = -1;
-const venueGeocodeCache = new Map();
 let detectedVenue = "";
-let detectedVenueReason = "";
 let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
 let sendingReceipt = false;
@@ -1120,7 +1109,6 @@ function initVenueSelect(){
       return;
     }
     detectedVenue = venue;
-    detectedVenueReason = "";
     setVenuePhoto(venue);
   });
 }
@@ -1343,7 +1331,6 @@ function renderVenueGateButtons(){
       });
 
       detectedVenue = venue;
-      detectedVenueReason = "";
       setVenueBadge(`Venue: ${detectedVenue}`);
       setVenuePhoto(detectedVenue);
       unlockAppForManager(authenticatedManagerName);
@@ -1380,31 +1367,11 @@ async function startPostPinVenueFlow(name){
   document.body.style.overflow = "hidden";
   setManagerWelcome(authenticatedManagerName);
   setVenueGateGreeting(authenticatedManagerName);
-  setVenueBadge("Venue: Detecting...");
-  setVenuePhoto("");
-
-  showVenueGateCard("Detecting your location...");
-  setVenueGateLoading(true);
-  const buttonsWrap = $("venueGateButtons");
-  if (buttonsWrap) buttonsWrap.innerHTML = "";
-
-  const result = await detectVenueFromLocation();
-  setVenueGateLoading(false);
-  if (result && result.venue && !result.lowConfidence) {
-    detectedVenue = result.venue;
-    detectedVenueReason = "";
-    setVenueBadge(`Venue: ${detectedVenue}`);
-    setVenuePhoto(detectedVenue);
-    unlockAppForManager(authenticatedManagerName);
-    return;
-  }
-
-  detectedVenue = "";
-  detectedVenueReason = result && result.reason ? result.reason : "Location not matched.";
   setVenueBadge("Venue: Not selected");
   setVenuePhoto("");
 
-  showVenueGateCard("Can't detect which venue you're at. Please select the venue you're currently at.");
+  detectedVenue = "";
+  showVenueGateCard("Select the venue you're currently at.");
   setVenueGateLoading(false);
   renderVenueGateButtons();
 }
@@ -2202,139 +2169,7 @@ function pickVenue(){
   });
 }
 
-function getCurrentPosition(options = {}){
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation is not supported."));
-      return;
-    }
 
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 4000,
-      maximumAge: 60000,
-      ...options
-    });
-  });
-}
-
-async function geocodeVenueAddress(venue, address){
-  const cleanVenue = String(venue || "").trim();
-  const cleanAddress = String(address || "").trim();
-  if (!cleanVenue || !cleanAddress) return null;
-
-  const cacheKey = `${cleanVenue}::${cleanAddress}`;
-  if (venueGeocodeCache.has(cacheKey)) {
-    return venueGeocodeCache.get(cacheKey);
-  }
-
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(cleanAddress)}`;
-  const res = await fetch(url, {
-    headers: { "Accept": "application/json" }
-  });
-  if (!res.ok) return null;
-
-  const data = await res.json();
-  const top = Array.isArray(data) ? data[0] : null;
-  if (!top || !top.lat || !top.lon) return null;
-
-  const point = {
-    lat: Number(top.lat),
-    lon: Number(top.lon)
-  };
-  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
-
-  venueGeocodeCache.set(cacheKey, point);
-  return point;
-}
-
-function distanceMeters(lat1, lon1, lat2, lon2){
-  const toRad = deg => (deg * Math.PI) / 180;
-  const earthRadius = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadius * c;
-}
-
-async function detectVenueFromLocation(){
-  let coords;
-  try {
-    const pos = await getCurrentPosition();
-    coords = pos.coords;
-  } catch (err) {
-    if (err && typeof err.code === "number" && err.code === 3) {
-      try {
-        const retryPos = await getCurrentPosition({ timeout: 8000, maximumAge: 0 });
-        coords = retryPos.coords;
-      } catch (retryErr) {
-        err = retryErr;
-      }
-    }
-
-    if (!coords) {
-    let reason = "Location unavailable.";
-    if (err && typeof err.code === "number") {
-      if (err.code === 1) reason = "Location permission denied.";
-      if (err.code === 2) reason = "Location unavailable from device.";
-      if (err.code === 3) reason = "Location request timed out.";
-    }
-    return { venue: null, reason };
-    }
-  }
-
-  if (!coords || !Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) {
-    return { venue: null, reason: "Location coordinates were invalid." };
-  }
-
-  const entries = Object.entries(VENUE_ADDRESS_BOOK).filter(([, address]) => String(address || "").trim());
-  if (!entries.length) return { venue: null, reason: "No venue addresses are configured." };
-
-  let bestVenue = null;
-  let bestDistance = Infinity;
-  let secondBestDistance = Infinity;
-
-  for (const [venue, address] of entries) {
-    try {
-      const coordOverride = VENUE_COORDINATES[venue];
-      const hasOverride =
-        coordOverride &&
-        Number.isFinite(coordOverride.lat) &&
-        Number.isFinite(coordOverride.lon);
-      const point = hasOverride ? coordOverride : await geocodeVenueAddress(venue, address);
-      if (!point) continue;
-      const d = distanceMeters(coords.latitude, coords.longitude, point.lat, point.lon);
-      if (d < bestDistance) {
-        secondBestDistance = bestDistance;
-        bestDistance = d;
-        bestVenue = venue;
-      } else if (d < secondBestDistance) {
-        secondBestDistance = d;
-      }
-    } catch {}
-  }
-
-  if (!bestVenue) return { venue: null, reason: "Could not match location to venue addresses." };
-  if (bestDistance > VENUE_MATCH_RADIUS_METERS) {
-    return {
-      venue: bestVenue,
-      reason: `Estimated from nearest venue (${Math.round(bestDistance)}m away)`,
-      distanceMeters: bestDistance,
-      lowConfidence: false
-    };
-  }
-
-  return {
-    venue: bestVenue,
-    reason: "",
-    distanceMeters: bestDistance,
-    lowConfidence: false
-  };
-}
 
 async function postToAppsScript(endpoint, payload){
   const json = JSON.stringify(payload);
@@ -2424,12 +2259,10 @@ async function sendReceipt(){
     venue = getSelectedVenueValue();
   }
   if (!venue) {
-    const reason = detectedVenueReason || "Location not matched.";
-    setStatus(`${reason} Please choose your venue.`, "error");
+    setStatus("Please choose your venue.", "error");
     venue = await pickVenue();
     if (venue) {
       detectedVenue = venue;
-      detectedVenueReason = "";
       setVenueBadge(`Venue: ${detectedVenue}`);
       setVenuePhoto(detectedVenue);
     }
