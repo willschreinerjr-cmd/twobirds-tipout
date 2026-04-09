@@ -469,11 +469,6 @@
       transition:border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease);
     }
     .staff-role:focus{ border-color:var(--green); }
-    .staff-row[data-role="Event Staff"] .staff-role{
-      background:#fafafa;
-      border-color:#9ca3af;
-      color:#4b5563;
-    }
     .staff-row[data-role="Shift Manager"] .staff-role{
       background:#f3f4f6;
       border-color:var(--green);
@@ -484,10 +479,6 @@
       border-color:#111827;
       color:#111827;
     }
-    .staff-role option[value="Event Staff"]{
-      background:#fafafa;
-      color:#4b5563;
-    }
     .staff-role option[value="Shift Manager"]{
       background:#f3f4f6;
       color:#065f46;
@@ -496,7 +487,6 @@
       background:#fff;
       color:#111827;
     }
-    .staff-row[data-role="Event Staff"] td:first-child{ box-shadow:inset 3px 0 0 #9ca3af; }
     .staff-row[data-role="Shift Manager"] td:first-child{ box-shadow:inset 3px 0 0 var(--green-dark); }
     .staff-row[data-role="Bartender"] td:first-child{ box-shadow:inset 3px 0 0 #111827; }
     .hours-input:disabled{
@@ -927,8 +917,7 @@
 <script>
 const $ = id => document.getElementById(id);
 
-// 10% FOR EACH EVENT STAFF (not shared)
-const EVENT_STAFF_PCT_EACH = 0.10;
+
 
 function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
@@ -1726,8 +1715,7 @@ function sortStaffRowsByRole(){
 
   const roleOrder = {
     "Shift Manager": 0,
-    "Bartender": 1,
-    "Event Staff": 2
+    "Bartender": 1
   };
 
   const rows = [...body.querySelectorAll("tr")];
@@ -1754,7 +1742,6 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
       <select class="staff-role">
         <option value="Shift Manager">Shift Manager</option>
         <option value="Bartender">Bartender</option>
-        <option value="Event Staff">Event Staff</option>
       </select>
     </td>
     <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
@@ -1770,18 +1757,11 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
   const applyRoleBehavior = () => {
     const selectedRole = String(roleSelect.value || "");
     tr.dataset.role = selectedRole;
-    const isEvent = selectedRole === "Event Staff";
-    if (isEvent) {
-      hoursInput.value = "";
-      hoursInput.disabled = true;
-      hoursInput.placeholder = "—";
-    } else {
-      hoursInput.disabled = false;
-      hoursInput.placeholder = "0";
-    }
+    hoursInput.disabled = false;
+    hoursInput.placeholder = "0";
   };
 
-  const normalizedRole = ["Event Staff", "Shift Manager", "Bartender"].includes(role) ? role : "Bartender";
+  const normalizedRole = ["Shift Manager", "Bartender"].includes(role) ? role : "Bartender";
   roleSelect.value = normalizedRole === "Shift Manager" && hasExistingShiftManager(tr) ? "Bartender" : normalizedRole;
   let previousRole = roleSelect.value;
 
@@ -1830,7 +1810,7 @@ function getUnifiedStaffRows(){
     const inputs = tr.querySelectorAll("input");
     const name = normalizeName(inputs[0]?.value || "");
     const hoursRaw = inputs[1]?.value || "";
-    const hours = role === "Event Staff" ? 0 : (+hoursRaw || 0);
+    const hours = +hoursRaw || 0;
 
     return { role, name, hours, tr, inputs };
   });
@@ -2133,7 +2113,7 @@ function getMissingCalculationMessage(){
     let hasInvalidName = false;
 
     staffRows.forEach((row, idx) => {
-      const role = ["Event Staff", "Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
+      const role = ["Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
       const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
 
       if (!cleanedName) {
@@ -2142,11 +2122,9 @@ function getMissingCalculationMessage(){
         hasInvalidName = true;
       }
 
-      if (role !== "Event Staff") {
-        const hoursValue = +String(row.inputs[1]?.value || "").trim() || 0;
-        if (hoursValue <= 0) {
-          hasMissingHours = true;
-        }
+      const hoursValue = +String(row.inputs[1]?.value || "").trim() || 0;
+      if (hoursValue <= 0) {
+        hasMissingHours = true;
       }
     });
 
@@ -2154,7 +2132,7 @@ function getMissingCalculationMessage(){
     if (hasInvalidName) pushMissing("valid staff names");
     if (hasMissingHours) pushMissing("staff hours");
 
-    const hasPayoutRow = staffRows.some(row => row.role !== "Event Staff" && (+row.inputs[1]?.value || 0) > 0);
+    const hasPayoutRow = staffRows.some(row => (+row.inputs[1]?.value || 0) > 0);
     if (!hasPayoutRow) pushMissing("staff hours");
   }
 
@@ -2165,7 +2143,7 @@ function getDraft(){
   const staff = getUnifiedStaffRows().map(row => ({
     role: row.role,
     name: row.name,
-    hours: row.role === "Event Staff" ? "" : String(row.hours || "")
+    hours: String(row.hours || "")
   }));
 
   return {
@@ -2205,15 +2183,13 @@ function restoreDraft(){
       draft.staff.forEach(row => {
         const role = String(row?.role || "Bartender");
         const name = normalizeName(row?.name || "");
-        const hours = role === "Event Staff" ? "" : (row?.hours || "");
+        const hours = row?.hours || "";
         addStaff(role, name, hours, false);
       });
     } else {
-      const events = Array.isArray(draft.eventStaff) ? draft.eventStaff : [];
       const shift = draft.shiftManager && typeof draft.shiftManager === "object" ? draft.shiftManager : {};
       const bartenders = Array.isArray(draft.bartenders) ? draft.bartenders : [];
 
-      events.forEach(name => addStaff("Event Staff", normalizeName(name), "", false));
       if (shift.name || shift.hours) {
         addStaff("Shift Manager", normalizeName(shift.name || ""), shift.hours || "", false);
       }
@@ -2556,9 +2532,9 @@ $("calc").onclick = () => {
 
   let hasInvalidName = false;
   const staffRows = getUnifiedStaffRows();
-  const roleCounts = { "Event Staff": 0, "Shift Manager": 0, "Bartender": 0 };
+  const roleCounts = { "Shift Manager": 0, "Bartender": 0 };
   const normalizedRows = staffRows.map(row => {
-    const role = ["Event Staff", "Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
+    const role = ["Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
     roleCounts[role] = (roleCounts[role] || 0) + 1;
 
     const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
@@ -2571,12 +2547,11 @@ $("calc").onclick = () => {
     return {
       role,
       name: cleanedName || fallbackName,
-      hours: role === "Event Staff" ? 0 : (+row.inputs[1]?.value || 0)
+      hours: +row.inputs[1]?.value || 0
     };
   });
 
-  const eventStaff = normalizedRows.filter(r => r.role === "Event Staff").map(r => r.name);
-  const payoutPeople = normalizedRows.filter(r => r.role !== "Event Staff" && r.hours > 0);
+  const payoutPeople = normalizedRows.filter(r => r.hours > 0);
 
   if ((roleCounts["Shift Manager"] || 0) > 1) {
     setStatus("Only one Shift Manager is allowed.", "error");
@@ -2590,40 +2565,15 @@ $("calc").onclick = () => {
 
   if (!payoutPeople.length) return;
 
-  // Event Staff total = 10% each
-  const eventEach = eventStaff.length ? Math.floor(pot * EVENT_STAFF_PCT_EACH) : 0;
-  const eventTotal = eventEach * eventStaff.length;
-
-  const remaining = Math.max(0, pot - eventTotal);
-
   const totalHours = payoutPeople.reduce((s,b)=>s+b.hours,0);
   if (totalHours <= 0) return;
 
   // ✅ Base bartender rate, rounded to 2 decimals (display + calculation match)
-  const baseRateRaw = remaining / totalHours;
+  const baseRateRaw = pot / totalHours;
   const baseRate = Math.round(baseRateRaw * 100) / 100;
 
   const body = $("resultsBody");
   const entries = [];
-
-  // Event Staff rows
-  eventStaff.forEach(name => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(name)}</td>
-      <td class="right">—</td>
-      <td class="right"><b>${moneyWhole(eventEach)}</b></td>
-    `;
-    body.appendChild(tr);
-
-    entries.push({
-      role: "Event Staff",
-      name,
-      hours: null,
-      rate: null,
-      tipout: Math.floor(eventEach)
-    });
-  });
 
   // Shift Manager + Bartender rows (tipout uses rounded baseRate)
   payoutPeople.forEach(b => {
@@ -2647,9 +2597,7 @@ $("calc").onclick = () => {
 
   latestReceipt = {
     totalPot: pot,
-    eventStaffCount: eventStaff.length,
     bartenderCount: payoutPeople.length,
-    remainingForBartenders: remaining,
     bartenderRate: baseRate,
     entries
   };
