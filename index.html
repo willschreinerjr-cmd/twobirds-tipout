@@ -479,6 +479,11 @@
       border-color:#111827;
       color:#111827;
     }
+    .staff-row[data-role="Training"] .staff-role{
+      background:#fff7ed;
+      border-color:#f97316;
+      color:#c2410c;
+    }
     .staff-role option[value="Shift Manager"]{
       background:#f3f4f6;
       color:#065f46;
@@ -487,8 +492,13 @@
       background:#fff;
       color:#111827;
     }
+    .staff-role option[value="Training"]{
+      background:#fff7ed;
+      color:#c2410c;
+    }
     .staff-row[data-role="Shift Manager"] td:first-child{ box-shadow:inset 3px 0 0 var(--green-dark); }
     .staff-row[data-role="Bartender"] td:first-child{ box-shadow:inset 3px 0 0 #111827; }
+    .staff-row[data-role="Training"] td:first-child{ box-shadow:inset 3px 0 0 #f97316; }
     .hours-input:disabled{
       background:#f3f4f6;
       color:#9ca3af;
@@ -931,6 +941,7 @@ const VENUE_PHOTO_BOOK = {
   "Society": "Society.jpg"
 };
 const STAFF_NAMES = [
+  "Abby Acken",
   "Theodore Adam",
   "Noah Aitch",
   "Olivia Bartels",
@@ -942,7 +953,7 @@ const STAFF_NAMES = [
   "Elly Buettner",
   "Harrison Chalupka",
   "Lily Correa Rivas",
-  "Manolo Delgato",
+  "Manolo Delgado",
   "Haley DeSart",
   "Cassandra DeVillers",
   "Avery Diercks",
@@ -973,6 +984,8 @@ const STAFF_NAMES = [
   "Emma Lundberg",
   "Alexis Madau",
   "Leah Maher",
+  "Allie Miller",
+  "Alyssa Wells",
   "Ari Manta",
   "Jake Mau",
   "Shawn McDaniel",
@@ -982,7 +995,7 @@ const STAFF_NAMES = [
   "Lesley Nicholas",
   "Kacey Ninmann",
   "Sophia Norenberg",
-  "Ian O’Connor",
+  "Ian O'Connor",
   "Maria Olsson",
   "Bradley Parsons",
   "Andrew Pecunia",
@@ -1003,11 +1016,66 @@ const STAFF_NAMES = [
   "Ellen Trombla",
   "Milo Wehmeyer",
   "Steve Wyrobek",
-  "Emily York"
+  "Emily York",
+  "Billy Schreiner",
+  "Britt Johnson",
+  "Cam Hall",
+  "Cassie DeVillers",
+  "Charlie Schuenke",
+  "Chris ToastTech",
+  "Christine Boggs",
+  "Dessi Harrison",
+  "Elizabeth Gorney",
+  "Ellery Pascual",
+  "Emery Eisenhauer",
+  "Emily Crain-Castle",
+  "Grayson Wucherer",
+  "Jackie Stecker",
+  "Jake Faapito",
+  "Jasmin Sendejo",
+  "Jasmine Benavidez",
+  "Jason Ramirez",
+  "Jax Romero",
+  "Jess Stark",
+  "Julia Appel",
+  "Jullian Kudick",
+  "Kassie Martin",
+  "Kristy Eron",
+  "Leah Kerkman",
+  "Less",
+  "Livi Burgos",
+  "Maddie Schmit",
+  "Maddie Westreich",
+  "Mallory Asplund",
+  "Mandi Benjamin",
+  "Mar Mar Binks Mielke",
+  "Marco Bonacquisto",
+  "Matt Basteyns",
+  "Mau Silvera",
+  "Mauricio Campero",
+  "Maya Nebbia",
+  "Melanie Murma",
+  "Michael Sopa",
+  "Michaela Rabas",
+  "Natalie Dibert",
+  "Natalie Norris",
+  "Nate Ulrich",
+  "Nick Brenning",
+  "Nyemma Johnson",
+  "Operations Manager",
+  "PW: default Login",
+  "Ramsey Renno",
+  "romeo Deboer",
+  "Samuel Loomis",
+  "Sophia Dimmer",
+  "Tedros Adam",
+  "Toasty Tech",
+  "Ty Tague"
 ];
 const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y/edit?usp=sharing";
 const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
 const DRAFT_KEY = "twobirds-tipout-draft-v1";
+const TRAINING_POOL_RATE = 0.10;
 const MANAGER_PIN_KEY = "twobirds-manager-auth-v1";
 const MANAGER_TOKEN_KEY = "twobirds-manager-token-v1";
 const MANAGER_TOKEN_EXP_KEY = "twobirds-manager-token-exp-v1";
@@ -1019,6 +1087,7 @@ let detectedVenue = "";
 let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
 let sendingReceipt = false;
+let fetchingToastStaff = false;
 let toastTimer = null;
 let statusFadeTimer = null;
 let statusClearTimer = null;
@@ -1160,7 +1229,7 @@ function initVenueSelect(){
     select.appendChild(option);
   });
 
-  select.addEventListener("change", () => {
+  select.addEventListener("change", async () => {
     const venue = String(select.value || "").trim();
     if (!VENUES.includes(venue)) {
       if (detectedVenue && VENUES.includes(detectedVenue)) {
@@ -1171,6 +1240,11 @@ function initVenueSelect(){
     detectedVenue = venue;
     animateVenueSwitch(select, venue);
     setVenuePhoto(venue);
+
+    const toastStaff = await fetchToastStaff(venue);
+    if (toastStaff && toastStaff.length) {
+      populateStaffFromToast(toastStaff);
+    }
   });
 }
 
@@ -1438,7 +1512,12 @@ function renderVenueGateButtons(){
       detectedVenue = venue;
       setVenueBadge(`Venue: ${detectedVenue}`);
       setVenuePhoto(detectedVenue);
+
+      const toastStaff = await fetchToastStaff(venue);
       unlockAppForManager(authenticatedManagerName);
+      if (toastStaff && toastStaff.length) {
+        populateStaffFromToast(toastStaff);
+      }
     };
     wrap.appendChild(btn);
   });
@@ -1715,7 +1794,8 @@ function sortStaffRowsByRole(){
 
   const roleOrder = {
     "Shift Manager": 0,
-    "Bartender": 1
+    "Bartender": 1,
+    "Training": 2
   };
 
   const rows = [...body.querySelectorAll("tr")];
@@ -1742,6 +1822,7 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
       <select class="staff-role">
         <option value="Shift Manager">Shift Manager</option>
         <option value="Bartender">Bartender</option>
+        <option value="Training">Training</option>
       </select>
     </td>
     <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
@@ -1761,7 +1842,7 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
     hoursInput.placeholder = "0";
   };
 
-  const normalizedRole = ["Shift Manager", "Bartender"].includes(role) ? role : "Bartender";
+  const normalizedRole = ["Shift Manager", "Bartender", "Training"].includes(role) ? role : "Bartender";
   roleSelect.value = normalizedRole === "Shift Manager" && hasExistingShiftManager(tr) ? "Bartender" : normalizedRole;
   let previousRole = roleSelect.value;
 
@@ -2113,7 +2194,7 @@ function getMissingCalculationMessage(){
     let hasInvalidName = false;
 
     staffRows.forEach((row, idx) => {
-      const role = ["Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
+      const role = ["Shift Manager", "Bartender", "Training"].includes(row.role) ? row.role : "Bartender";
       const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
 
       if (!cleanedName) {
@@ -2337,6 +2418,42 @@ async function postToAppsScript(endpoint, payload){
   return data;
 }
 
+async function fetchToastStaff(venue){
+  if (fetchingToastStaff) return null;
+  fetchingToastStaff = true;
+  try {
+    const data = await postToAppsScript(RECEIPT_ENDPOINT, {
+      action: "fetchToastStaff",
+      venue,
+      managerName: authenticatedManagerName,
+      authToken: authenticatedManagerToken
+    });
+    return Array.isArray(data.staff) ? data.staff : [];
+  } catch (err) {
+    console.warn("Toast staff fetch skipped:", err.message);
+    return null;
+  } finally {
+    fetchingToastStaff = false;
+  }
+}
+
+function populateStaffFromToast(staffList){
+  if (!Array.isArray(staffList) || !staffList.length) return;
+
+  const body = $("staffBody");
+  if (!body) return;
+  body.innerHTML = "";
+
+  staffList.forEach((person, idx) => {
+    const name = String(person.name || "").trim();
+    const hours = person.hours ? String(person.hours) : "";
+    const role = idx === 0 ? "Shift Manager" : "Bartender";
+    addStaff(role, name, hours, false);
+  });
+
+  showToast(`Loaded ${staffList.length} staff from Toast`);
+}
+
 async function authenticateManagerPin(pin){
   const cleanPin = String(pin || "").replace(/\D+/g, "").slice(0, 4);
   if (cleanPin.length !== 4) {
@@ -2532,9 +2649,9 @@ $("calc").onclick = () => {
 
   let hasInvalidName = false;
   const staffRows = getUnifiedStaffRows();
-  const roleCounts = { "Shift Manager": 0, "Bartender": 0 };
+  const roleCounts = { "Shift Manager": 0, "Bartender": 0, "Training": 0 };
   const normalizedRows = staffRows.map(row => {
-    const role = ["Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
+    const role = ["Shift Manager", "Bartender", "Training"].includes(row.role) ? row.role : "Bartender";
     roleCounts[role] = (roleCounts[role] || 0) + 1;
 
     const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
@@ -2565,23 +2682,33 @@ $("calc").onclick = () => {
 
   if (!payoutPeople.length) return;
 
-  const totalHours = payoutPeople.reduce((s,b)=>s+b.hours,0);
-  if (totalHours <= 0) return;
+  const trainingPeople = payoutPeople.filter(person => person.role === "Training");
+  const bartenderPeople = payoutPeople.filter(person => person.role !== "Training");
+  const trainingHours = trainingPeople.reduce((sum, person) => sum + person.hours, 0);
+  const bartenderHours = bartenderPeople.reduce((sum, person) => sum + person.hours, 0);
+  if (bartenderHours <= 0) {
+    setStatus("Add bartender hours to divide the remaining tip pool.", "error");
+    return;
+  }
 
-  // ✅ Base bartender rate, rounded to 2 decimals (display + calculation match)
-  const baseRateRaw = pot / totalHours;
-  const baseRate = Math.round(baseRateRaw * 100) / 100;
+  const trainingPool = trainingPeople.length ? pot * TRAINING_POOL_RATE : 0;
+  const bartenderPool = pot - trainingPool;
+  const trainingRate = trainingHours > 0
+    ? Math.round((trainingPool / trainingHours) * 100) / 100
+    : 0;
+  const baseRate = Math.round((bartenderPool / bartenderHours) * 100) / 100;
 
   const body = $("resultsBody");
   const entries = [];
 
-  // Shift Manager + Bartender rows (tipout uses rounded baseRate)
+  // Training receives 10% of the pot; the remaining pool is shared by bartenders.
   payoutPeople.forEach(b => {
-    const tipout = Math.floor(b.hours * baseRate);
+    const rate = b.role === "Training" ? trainingRate : baseRate;
+    const tipout = Math.floor(b.hours * rate);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(b.name)}</td>
-      <td class="right">${moneyRate(baseRate)}</td>
+      <td class="right">${moneyRate(rate)}</td>
       <td class="right"><b>${moneyWhole(tipout)}</b></td>
     `;
     body.appendChild(tr);
@@ -2590,15 +2717,17 @@ $("calc").onclick = () => {
       role: b.role,
       name: b.name,
       hours: b.hours,
-      rate: baseRate,
+      rate,
       tipout
     });
   });
 
   latestReceipt = {
     totalPot: pot,
-    bartenderCount: payoutPeople.length,
+    bartenderCount: bartenderPeople.length,
     bartenderRate: baseRate,
+    trainingPool,
+    trainingRate,
     entries
   };
 
