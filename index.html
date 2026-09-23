@@ -2397,25 +2397,34 @@ function pickVenue(){
 async function postToAppsScript(endpoint, payload){
   const json = JSON.stringify(payload);
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=UTF-8" },
-    body: json
-  });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: json
+    });
 
-  const text = await res.text();
-  let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error("Backend returned an unreadable response.");
+    const text = await res.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      if (attempt === 0) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        continue;
+      }
+      throw new Error("Backend returned an unreadable response. Please try again.");
+    }
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || `Send failed (HTTP ${res.status}).`);
+    }
+
+    return data;
   }
 
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || `Send failed (HTTP ${res.status}).`);
-  }
-
-  return data;
+  throw new Error("Backend request failed. Please try again.");
 }
 
 async function fetchToastStaff(venue){
