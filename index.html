@@ -991,6 +991,9 @@
             </div>
           </section>
           <p class="field-help">Estimate for this event's time card, including tips already received as cash. Uses your paystub's effective withholding rate, not an exact payroll tax calculation. Actual withholding varies by pay period; this is not your paycheck deposit.</p>
+          <button id="downloadPersonalEarnings" type="button">Download Earnings (CSV)</button>
+          <p class="field-help">Save today's date, venue, hours, tips, and both earnings comparisons. Opens in Excel, Google Sheets, or Numbers. No receipt is sent.</p>
+          <p id="personalDownloadStatus" class="field-help" role="status"></p>
         </div>
       </section>
     </div>
@@ -2109,11 +2112,76 @@ function readPersonalEarningsProfile(value, managerName){
   return { owner: value.owner, hourlyRate: value.hourlyRate, withholdingRate: value.withholdingRate };
 }
 
+function canAccessPersonalEarnings(){
+  return authenticatedManagerName.trim().toLowerCase() === "will schreiner" &&
+    Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
+}
+
+function downloadPersonalEarnings(){
+  const status = $("personalDownloadStatus");
+  status.textContent = "";
+  if (!canAccessPersonalEarnings()) {
+    showToast("Sign in to Will Schreiner's account to download personal earnings.");
+    return;
+  }
+  const result = getCurrentCalculation();
+  const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
+  if (!earnings || parseGuestCount($("guestCount").value).error) {
+    status.textContent = "Add Will Schreiner's positive hours and correct any guest-count error before downloading.";
+    return;
+  }
+  const date = todayLocalISO();
+  const venue = getSelectedVenueValue();
+  if (!venue) {
+    status.textContent = "Select a venue before downloading your earnings.";
+    return;
+  }
+  const hasMinimum = result.guaranteedMinimum !== null;
+  const note = "Estimated taxes based on one paystub's effective withholding rate. Includes cash already received; not an exact payroll calculation or paycheck deposit.";
+  const shared = [date, venue, personalEarningsProfile.owner, earnings.hours,
+    personalEarningsProfile.hourlyRate.toFixed(2), earnings.wages.toFixed(2), earnings.tips.toFixed(2),
+    parseGuestCount($("guestCount").value).count ?? "", hasMinimum ? result.guaranteedMinimum.toFixed(2) : ""];
+  const rows = [
+    ["Date", "Venue", "Name", "Hours", "Hourly Rate (USD)", "Hourly Wages (USD)",
+      "Cash and Credit Tips After Tip-Out (USD)", "Event Guests", "Event Tip Minimum (USD)",
+      "Comparison", "Your Additional Paycheck Share (USD)", "Total Before Tax (USD)",
+      "Estimated Tax (USD)", "Estimated After Tax (USD)", "Estimated Withholding Rate", "Notes"],
+    [...shared, "Without Tip Minimum", "0.00", earnings.withoutMinimum.gross.toFixed(2),
+      earnings.withoutMinimum.tax.toFixed(2), earnings.withoutMinimum.net.toFixed(2),
+      `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`, note],
+    [...shared, "With Tip Minimum", ...(
+      hasMinimum
+        ? [earnings.paycheckShare, earnings.gross, earnings.tax, earnings.net].map(value => value.toFixed(2))
+        : ["", "", "", ""]
+    ), `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`,
+      hasMinimum ? note : `Not calculated: no guest count entered. ${note}`]
+  ];
+  const csv = rows.map(row => row.map(value =>
+    `"${String(value).replace(/"/g, '""')}"`
+  ).join(",")).join("\r\n") + "\r\n";
+  let url;
+  const link = document.createElement("a");
+  try {
+    url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    link.href = url;
+    link.download = `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    status.textContent = "Earnings file prepared. Check your browser's downloads.";
+  } catch (error) {
+    console.error("Could not download personal earnings:", error);
+    status.textContent = "Could not download your earnings. Please try again.";
+  } finally {
+    link.remove();
+    if (url) setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+}
+
 function updatePersonalEarnings(result){
   const section = $("personalEarnings");
-  const authorized = authenticatedManagerName.trim().toLowerCase() === "will schreiner" &&
-    Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
+  const authorized = canAccessPersonalEarnings();
   section.hidden = !authorized;
+  $("personalDownloadStatus").textContent = "";
   $("personalEarningsValues").hidden = true;
   ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet",
     "personalBaseGross", "personalBaseTax", "personalBaseNet", "personalMinimumHelp"].forEach(id => {
@@ -2862,6 +2930,7 @@ $("pot").addEventListener("input", markUncalculated);
 });
 $("staffBody").addEventListener("input", saveDraft);
 $("staffBody").addEventListener("input", markUncalculated);
+$("downloadPersonalEarnings").addEventListener("click", downloadPersonalEarnings);
 
 if (!restoreDraft()) {
   addStaff("Bartender", "", "", false);

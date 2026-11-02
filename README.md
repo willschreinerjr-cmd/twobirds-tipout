@@ -54,6 +54,15 @@ from one supplied paystub. The unrounded rate is used internally; tax and net
 amounts round to cents. This includes cash already received and is not a paycheck
 deposit estimate or an exact payroll tax calculation.
 
+Will's section also offers **Download Earnings (CSV)** for saving a local record
+in Excel, Google Sheets, or Numbers. Each file includes today's local date, the
+selected venue, Will's hours, wages, actual tips, and the before-tax, estimated
+tax, and after-tax totals for both comparisons. Without a guest count, the
+with-minimum comparison is explicitly marked not calculated rather than saved
+as zero. Downloads use the current inputs, require Will's positive hours and a
+venue, and do not send a receipt or upload the earnings record. Files are
+individual snapshots, not an automatically maintained earnings history.
+
 The profile is fetched only through authenticated login/session validation,
 is not saved in drafts, is not added to shared receipts, and is cleared when the
 session is cleared. Other accounts do not receive the profile. The updated

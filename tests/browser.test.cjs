@@ -331,6 +331,83 @@ test("personal earnings require Will's server profile and remain hidden for othe
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
 });
 
+test("Will can download current personal earnings comparisons without sending a receipt", async t => {
+  const page = await openCalculator(t, 320);
+  let requests = 0;
+  await page.route("https://script.google.com/**", async route => {
+    requests++;
+    await route.fulfill({ json: {
+      ok: true, valid: true,
+      personalEarningsProfile: { owner: "Will Schreiner", hourlyRate: 15, withholdingRate: 0.2074821353509878 }
+    } });
+  });
+  await page.evaluate(async () => {
+    authenticatedManagerName = "Will Schreiner";
+    authenticatedManagerToken = "test-session";
+    await validateManagerSession(authenticatedManagerName, authenticatedManagerToken);
+    document.getElementById("staffBody").innerHTML = "";
+    addStaff("Shift Manager", "Will Schreiner", "5", false);
+    document.getElementById("pinGate").style.display = "grid";
+    startPostPinVenueFlow(authenticatedManagerName);
+  });
+  await page.locator("#venueGateButtons button").first().click();
+  await page.waitForFunction(() => document.getElementById("pinGate").style.display === "none");
+  await page.locator("#venueSelect").selectOption("Ivy House");
+  await fill(page, "pot", "100");
+  await fill(page, "creditPot", "50");
+  const downloads = [];
+  page.on("download", download => downloads.push(download));
+  async function downloadRows() {
+    const pending = page.waitForEvent("download");
+    await page.locator("#downloadPersonalEarnings").click();
+    const download = await pending;
+    const stream = await download.createReadStream();
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    const csv = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
+    const rows = csv.trimEnd().split("\r\n").map(line => line.slice(1, -1).split('","'));
+    assert.equal(rows.length, 3);
+    rows.forEach(row => assert.equal(row.length, 16));
+    const date = await page.evaluate(() => todayLocalISO());
+    assert.equal(download.suggestedFilename(), `will-schreiner-earnings-${date}-ivy-house.csv`);
+    assert.deepEqual(rows[1].slice(0, 7), [date, "Ivy House", "Will Schreiner", "5", "15.00", "75.00", "150.00"]);
+    assert.match(rows[1][15], /not an exact payroll calculation/);
+    await download.delete();
+    return rows;
+  }
+  let rows = await downloadRows();
+  assert.deepEqual(rows[1].slice(9, 15), ["Without Tip Minimum", "0.00", "225.00", "46.68", "178.32", "20.75%"]);
+  assert.deepEqual(rows[2].slice(10, 14), ["", "", "", ""]);
+  assert.match(rows[2][15], /Not calculated/);
+  await fill(page, "guestCount", "100");
+  rows = await downloadRows();
+  assert.deepEqual(rows[2].slice(7, 14), ["100", "400.00", "With Tip Minimum", "250.00", "475.00", "98.55", "376.45"]);
+  await fill(page, "guestCount", "0");
+  rows = await downloadRows();
+  assert.deepEqual(rows[2].slice(10, 14), ["0.00", "225.00", "46.68", "178.32"]);
+  await fill(page, "guestCount", "-1");
+  await page.locator("#downloadPersonalEarnings").click();
+  assert.match(await page.locator("#personalDownloadStatus").textContent(), /correct any guest-count error/);
+  assert.equal(downloads.length, 3);
+  await fill(page, "guestCount", "");
+  const bounds = await page.locator("#downloadPersonalEarnings").boundingBox();
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 320);
+  await page.locator("#staffBody input").first().fill("Another Person");
+  assert.equal(await page.locator("#downloadPersonalEarnings").isVisible(), false);
+  await page.evaluate(() => downloadPersonalEarnings());
+  assert.equal(downloads.length, 3);
+  await page.evaluate(() => clearManagerSessionStorage());
+  assert.equal(await page.locator("#downloadPersonalEarnings").isVisible(), false);
+  await page.evaluate(() => {
+    authenticatedManagerName = "Another Manager";
+    authenticatedManagerToken = "another-session";
+    updateResults();
+    downloadPersonalEarnings();
+  });
+  assert.equal(downloads.length, 3);
+  assert.equal(requests, 1, "downloads must not call the backend or send receipts");
+});
+
 test("venue entry and switching make no network requests and preserve manual time cards", async t => {
   const page = await openCalculator(t);
   const requests = [];
