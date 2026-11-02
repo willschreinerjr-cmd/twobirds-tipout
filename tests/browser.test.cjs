@@ -397,7 +397,7 @@ test("personal earnings require Will's server profile and remain hidden for othe
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
 });
 
-test("Will can download current personal earnings comparisons without sending a receipt", async t => {
+test("Will can save a one-page earnings PDF with exact totals and native file sharing", async t => {
   const page = await openCalculator(t, 320);
   await page.evaluate(() => {
     Object.defineProperty(navigator, "canShare", { configurable: true, value: () => false });
@@ -426,34 +426,61 @@ test("Will can download current personal earnings comparisons without sending a 
   await fill(page, "creditPot", "50");
   const downloads = [];
   page.on("download", download => downloads.push(download));
-  async function downloadRows() {
+  async function downloadReceipt() {
     const pending = page.waitForEvent("download");
     await page.locator("#downloadPersonalEarnings").click();
     const download = await pending;
     const stream = await download.createReadStream();
     const chunks = [];
     for await (const chunk of stream) chunks.push(chunk);
-    const csv = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
-    const rows = csv.trimEnd().split("\r\n").map(line => line.slice(1, -1).split('","'));
-    assert.equal(rows.length, 3);
-    rows.forEach(row => assert.equal(row.length, 18));
+    const bytes = Buffer.concat(chunks);
+    assert.equal(bytes.subarray(0, 8).toString(), "%PDF-1.4");
+    const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const loading = getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
+    const pdf = await loading.promise;
+    assert.equal(pdf.numPages, 1);
+    const pdfPage = await pdf.getPage(1);
+    const content = await pdfPage.getTextContent();
+    const labels = content.items.filter(item => item.str.trim()).map(item => item.str);
+    const text = labels.join("\n");
+    assert.equal(labels.filter(label => label === "Will Schreiner").length, 1);
+    assert.equal(labels.filter(label => label === "TOTAL EARNED BEFORE TAX").length, 1);
+    assert.match(text, /TwoBirds/);
+    assert.match(text, /EVENT EARNINGS/);
+    assert.match(text, /Cash tips/);
+    assert.match(text, /Credit tips/);
+    assert.match(text, /Hourly wages/);
+    assert.match(text, /5 hours/);
+    assert.match(text, /estimate, not a paycheck deposit/);
+    assert.match(text, /Includes cash tips already received/);
+    assert.doesNotMatch(text, /Without Tip Minimum|With Tip Minimum|Withholding|Guests|Not calculated/);
+    const amounts = content.items.filter(item => item.str.startsWith("$"));
+    const biggest = amounts.reduce((largest, item) => item.height > largest.height ? item : largest);
+    assert.equal(biggest.str, labels[labels.indexOf("TOTAL EARNED BEFORE TAX") + 1]);
+    for (const item of content.items.filter(item => item.str)) {
+      assert.ok(item.transform[4] >= 0 && item.transform[4] + item.width <= 432, `PDF text fits: ${item.str}`);
+      assert.ok(item.transform[5] > 0 && item.transform[5] < 648);
+    }
+    await pdf.destroy();
     const date = await page.evaluate(() => todayLocalISO());
-    assert.equal(download.suggestedFilename(), `will-schreiner-earnings-${date}-ivy-house.csv`);
-    assert.deepEqual(rows[1].slice(0, 7), [date, "Ivy House", "Will Schreiner", "5", "15.00", "75.00", "150.00"]);
-    assert.match(rows[1][15], /Tax is an estimate/);
+    assert.equal(download.suggestedFilename(), `will-schreiner-earnings-${date}-ivy-house.pdf`);
+    assert.match(text, new RegExp(date));
+    assert.match(text, /Ivy House/);
     await download.delete();
-    return rows;
+    return text;
   }
-  let rows = await downloadRows();
-  assert.deepEqual(rows[1].slice(9, 15), ["Without Tip Minimum", "0.00", "225.00", "46.68", "178.32", "20.75%"]);
-  assert.deepEqual(rows[2].slice(10, 14), ["", "", "", ""]);
-  assert.deepEqual(rows[1].slice(16), ["45.00", "35.66"]);
-  assert.deepEqual(rows[2].slice(16), ["", ""]);
-  assert.match(rows[2][15], /Not calculated/);
+  let receipt = await downloadReceipt();
+  assert.match(receipt, /\$225\.00/);
+  assert.match(receipt, /\$178\.32/);
+  assert.match(receipt, /\$45\.00\/hr/);
+  assert.match(receipt, /Cash tips\n\$100\nCredit tips\n\$50\.00\nHourly wages\n\$75\.00/);
+  assert.doesNotMatch(receipt, /Paycheck guarantee added/);
   await fill(page, "guestCount", "100");
-  rows = await downloadRows();
-  assert.deepEqual(rows[2].slice(7, 14), ["100", "400.00", "With Tip Minimum", "250.00", "475.00", "98.55", "376.45"]);
-  assert.deepEqual(rows[2].slice(16), ["95.00", "75.29"]);
+  receipt = await downloadReceipt();
+  assert.match(receipt, /\$475\.00/);
+  assert.match(receipt, /\$376\.45/);
+  assert.match(receipt, /\$95\.00\/hr/);
+  assert.match(receipt, /Paycheck guarantee added\n\$250\.00/);
   const hierarchy = await page.evaluate(() => ({
     hourly: parseFloat(getComputedStyle(document.getElementById("personalHourly")).fontSize),
     total: parseFloat(getComputedStyle(document.getElementById("personalGross")).fontSize)
@@ -468,12 +495,13 @@ test("Will can download current personal earnings comparisons without sending a 
   }
   await page.setViewportSize({ width: 320, height: 900 });
   await fill(page, "guestCount", "0");
-  rows = await downloadRows();
-  assert.deepEqual(rows[2].slice(10, 14), ["0.00", "225.00", "46.68", "178.32"]);
+  receipt = await downloadReceipt();
+  assert.match(receipt, /\$225\.00/);
+  assert.doesNotMatch(receipt, /Paycheck guarantee added/);
   await page.evaluate(() => {
     globalThis.sharedEarningsFiles = [];
     Object.defineProperty(navigator, "canShare", { configurable: true, value: data =>
-      data.files.length === 1 && data.files[0] instanceof File && data.files[0].type === "text/csv;charset=utf-8"
+      data.files.length === 1 && data.files[0] instanceof File && data.files[0].type === "application/pdf"
     });
     Object.defineProperty(navigator, "share", { configurable: true, writable: true, value: async data => {
       globalThis.sharedEarningsFiles.push({
@@ -485,8 +513,8 @@ test("Will can download current personal earnings comparisons without sending a 
   await page.locator("#downloadPersonalEarnings").click();
   await page.waitForFunction(() => document.getElementById("personalDownloadStatus").textContent.includes("Share menu closed"));
   const shared = await page.evaluate(() => globalThis.sharedEarningsFiles[0]);
-  assert.match(shared.name, /^will-schreiner-earnings-.*-ivy-house\.csv$/);
-  assert.match(shared.content, /"225.00","46.68","178.32"/);
+  assert.match(shared.name, /^will-schreiner-earnings-.*-ivy-house\.pdf$/);
+  assert.match(shared.content, /^%PDF-1.4/);
   assert.equal(shared.userActivated, true);
   assert.equal(downloads.length, 3, "sharing must not also download");
   await page.evaluate(() => {

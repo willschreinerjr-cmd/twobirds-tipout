@@ -56,7 +56,7 @@ plus his cash payouts and credit payouts. Two separate bottom sections compare:
   paycheck share, using the existing time-card distribution. A valid guest count
   is required. The extra-pay and earnings details appear only when the event
   falls below the minimum. When the minimum is met, only the green status
-  remains, avoiding duplicate totals. The CSV still retains both comparisons.
+  remains, avoiding duplicate totals. The PDF saves one final earnings total.
   A green **Minimum met** message means no extra pay is needed; a red
   **Below minimum** message means extra pay is owed. This checks the event's
   actual combined tips against its $4-per-guest minimum, not hourly wages.
@@ -67,24 +67,29 @@ earnings. The shared summary shows Will's hours, hourly wages, and total tips.
 Both comparisons highlight effective hourly earnings (total earnings divided by
 Will's hours), before and after estimated tax. Daily totals before and after
 estimated tax are the largest figures in the personal section. Hourly figures
-are also included in the CSV download; no guest count leaves the with-minimum
-figures blank. These are earnings including tips, not a change to the $15 wage.
+are also included in the PDF receipt. These are earnings including tips,
+not a change to the $15 wage.
 Estimated after-tax earnings use a 20.75% effective withholding rate derived
 from one supplied paystub. The unrounded rate is used internally; tax and net
 amounts round to cents. This includes cash already received and is not a paycheck
 deposit estimate or an exact payroll tax calculation.
 
-Will's section also offers **Save Earnings (CSV)** for saving a local record
-in Excel, Google Sheets, or Numbers. Each file includes today's local date, the
-selected venue, Will's hours, wages, actual tips, and the before-tax, estimated
-tax, and after-tax totals for both comparisons. Without a guest count, the
-with-minimum comparison is explicitly marked not calculated rather than saved
-as zero. Downloads use the current inputs, require Will's positive hours and a
-venue, and do not send a receipt or upload the earnings record. Files are
-individual snapshots, not an automatically maintained earnings history.
+Will's section offers **Save Earnings (PDF)**: a compact, single-page printable
+receipt with a TwoBirds heading, employee, today's local date, venue, hours,
+and a large before-tax total. A short breakdown lists whole-dollar cash tips,
+credit tips and wages to cents, and a paycheck guarantee only when Will's
+additional share is positive. Estimated after-tax earnings and effective
+before-tax hourly earnings follow. There are no duplicate comparisons, guest
+counts, or tax-rate explanations. Totals include the applicable guarantee and
+cash tips already received; the footer identifies the estimate as not a paycheck
+deposit. PDF text is selectable and vector-based for clear zooming and printing.
+Downloads require Will's positive hours and a venue and use current inputs,
+without sending a receipt or uploading the record. Files are individual
+snapshots, not an automatically maintained earnings history. PDF generation
+runs locally without a production dependency, external font, or server call.
 Browsers supporting file sharing (including supported iPhone Safari versions)
 open the native share menu: choose **Save to Files**. Other browsers download
-the CSV normally. A canceled or failed share offers **Download Instead** for a
+the PDF normally. A canceled or failed share offers **Download Instead** for a
 fresh, user-initiated download. Sharing never automatically selects a recipient
 or sends a receipt.
 
@@ -104,15 +109,16 @@ An older backend will ignore the new optional receipt fields.
 
 ## Verification
 
-Requires Node.js 18+:
+Requires Node.js 22+ for the PDF validation tooling:
 
 ```text
 npm ci
 npm test
 ```
 
-Tests compile-check both production scripts, compare cash calculations to the
-original algorithm, verify receipt row data, and exercise the real page in a
+Tests compile-check both production scripts, verify the role/hour allocations,
+cash rounding and cent reconciliation, verify receipt row data, parse generated
+PDFs for single-page content and totals, and exercise the real page in a
 headless browser, including live inputs, drafts, reset, send authorization, and
 320px/390px/720px layouts. Browser tests use an existing Chrome or Edge on Windows.
 Elsewhere, run `npx playwright install chromium`, or set

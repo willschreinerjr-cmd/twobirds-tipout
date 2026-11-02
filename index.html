@@ -1006,7 +1006,7 @@
             </div>
           </section>
           <p class="field-help">Per hour = your total pay + tips divided by your hours. Tax is an estimate from your paystub. Totals include cash tips already received, not just your paycheck.</p>
-          <button id="downloadPersonalEarnings" type="button">Save Earnings (CSV)</button>
+          <button id="downloadPersonalEarnings" type="button">Save Earnings (PDF)</button>
           <button id="downloadPersonalEarningsFallback" type="button" hidden>Download Instead</button>
           <p class="field-help">On iPhone, choose Save to Files in the share menu. No receipt is sent.</p>
           <p id="personalDownloadStatus" class="field-help" role="status"></p>
@@ -2162,6 +2162,76 @@ function canAccessPersonalEarnings(){
     Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
 }
 
+function buildEarningsPdf(earnings, result, owner, date, venue){
+  const ownEntries = result.cash.entries.map((entry, index) => ({ ...entry, index }))
+    .filter(entry => entry.name.trim().toLowerCase() === owner.trim().toLowerCase());
+  const cash = ownEntries.reduce((sum, entry) => sum + entry.tipout, 0);
+  const credit = Math.round(ownEntries.reduce((sum, entry) =>
+    sum + result.credit.entries[entry.index].tipout, 0) * 100) / 100;
+  const ink = "0.067 0.094 0.153";
+  const muted = "0.36 0.40 0.45";
+  const green = "0.086 0.40 0.25";
+  const commands = [];
+  const escape = value => String(value).replace(/([\\()])/g, "\\$1");
+  const text = (value, x, top, size, bold = false, color = ink) => {
+    commands.push(`${color} rg BT /${bold ? "F2" : "F1"} ${size} Tf 1 0 0 1 ${x} ${648 - top} Tm (${escape(value)}) Tj ET`);
+  };
+  const box = (x, top, width, height, color) => {
+    commands.push(`${color} rg ${x} ${648 - top - height} ${width} ${height} re f`);
+  };
+  text("TwoBirds", 32, 48, 25, true, green);
+  text("EVENT EARNINGS", 32, 70, 11, true, muted);
+  text(owner, 32, 108, 19, true);
+  text(`${date}  |  ${venue}  |  ${earnings.hours} hours`, 32, 130, 11, false, muted);
+  box(32, 150, 368, 106, green);
+  text("TOTAL EARNED BEFORE TAX", 48, 176, 12, true, "1 1 1");
+  const total = moneyRate(earnings.gross);
+  text(total, 48, 231, Math.min(48, 450 / total.length), true, "1 1 1");
+  const line = (label, amount, top, prominent = false, color = ink) => {
+    text(label, 32, top, 12, false, muted);
+    text(amount, 250, top, Math.min(prominent ? 23 : 18, 225 / amount.length), true, color);
+  };
+  line("Cash tips", "$" + Math.floor(cash).toLocaleString("en-US"), 294, true);
+  line("Credit tips", moneyRate(credit), 330);
+  line("Hourly wages", moneyRate(earnings.wages), 366);
+  if (earnings.paycheckShare > 0) {
+    line("Paycheck guarantee added", moneyRate(earnings.paycheckShare), 402, false, green);
+  }
+  box(32, 424, 368, 1, "0.88 0.89 0.90");
+  box(32, 444, 178, 86, "0.95 0.96 0.97");
+  box(222, 444, 178, 86, "0.95 0.96 0.97");
+  text("EST. AFTER TAX", 44, 467, 10, true, muted);
+  const net = moneyRate(earnings.net);
+  text(net, 44, 504, Math.min(26, 225 / net.length), true);
+  text("PER HOUR / BEFORE TAX", 234, 467, 9, true, muted);
+  const hourly = `${moneyRate(earnings.hourlyGross)}/hr`;
+  text(hourly, 234, 504, Math.min(24, 225 / hourly.length), true);
+  text("Includes cash tips already received.", 32, 566, 10, false, muted);
+  text("After-tax amount is an estimate, not a paycheck deposit.", 32, 583, 10, false, muted);
+
+  // Standard PDF fonts keep the receipt sharp without font downloads or a server.
+  const stream = commands.join("\n") + "\n";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 432 648] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}endstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach(offset => { pdf += `${String(offset).padStart(10, "0")} 00000 n \n`; });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
 async function downloadPersonalEarnings(preferShare = true){
   const status = $("personalDownloadStatus");
   status.textContent = "";
@@ -2182,38 +2252,12 @@ async function downloadPersonalEarnings(preferShare = true){
     status.textContent = "Select a venue before downloading your earnings.";
     return;
   }
-  const hasMinimum = result.guaranteedMinimum !== null;
-  const note = "Tax is an estimate based on your paystub. Includes cash tips already received. Not your paycheck deposit.";
-  const shared = [date, venue, personalEarningsProfile.owner, earnings.hours,
-    personalEarningsProfile.hourlyRate.toFixed(2), earnings.wages.toFixed(2), earnings.tips.toFixed(2),
-    parseGuestCount($("guestCount").value).count ?? "", hasMinimum ? result.guaranteedMinimum.toFixed(2) : ""];
-  const rows = [
-    ["Date", "Venue", "Name", "Hours", "Hourly Rate (USD)", "Hourly Wages (USD)",
-      "Cash and Credit Tips After Tip-Out (USD)", "Event Guests", "Event Tip Minimum (USD)",
-      "Comparison", "Your Additional Paycheck Share (USD)", "Total Before Tax (USD)",
-      "Estimated Tax (USD)", "Estimated After Tax (USD)", "Estimated Withholding Rate", "Notes",
-      "Earned Per Hour Before Tax (USD)", "Earned Per Hour After Estimated Tax (USD)"],
-    [...shared, "Without Tip Minimum", "0.00", earnings.withoutMinimum.gross.toFixed(2),
-      earnings.withoutMinimum.tax.toFixed(2), earnings.withoutMinimum.net.toFixed(2),
-      `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`, note,
-      earnings.withoutMinimum.hourlyGross.toFixed(2), earnings.withoutMinimum.hourlyNet.toFixed(2)],
-    [...shared, "With Tip Minimum", ...(
-      hasMinimum
-        ? [earnings.paycheckShare, earnings.gross, earnings.tax, earnings.net].map(value => value.toFixed(2))
-        : ["", "", "", ""]
-    ), `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`,
-      hasMinimum ? note : `Not calculated: no guest count entered. ${note}`,
-      hasMinimum ? earnings.hourlyGross.toFixed(2) : "", hasMinimum ? earnings.hourlyNet.toFixed(2) : ""]
-  ];
-  const csv = rows.map(row => row.map(value =>
-    `"${String(value).replace(/"/g, '""')}"`
-  ).join(",")).join("\r\n") + "\r\n";
   let url;
   const link = document.createElement("a");
   try {
-    const file = new File(["\uFEFF", csv],
-      `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.csv`,
-      { type: "text/csv;charset=utf-8" });
+    const file = new File([buildEarningsPdf(earnings, result, personalEarningsProfile.owner, date, venue)],
+      `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+      { type: "application/pdf" });
     if (preferShare && navigator.share && navigator.canShare?.({ files: [file] })) {
       status.textContent = "Choose Save to Files to keep your earnings.";
       try {
