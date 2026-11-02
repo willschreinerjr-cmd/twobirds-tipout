@@ -930,102 +930,6 @@ function syncNotesLog(ss, dateValue, venueValue, notesValue) {
   rewriteNotesSheet(notesSheet, dayMap, dayOrder);
 }
 
-/* ─── Toast POS Integration ─── */
-
-function getToastAccessToken() {
-  const props = PropertiesService.getScriptProperties();
-  const clientId = props.getProperty("TOAST_CLIENT_ID");
-  const clientSecret = props.getProperty("TOAST_CLIENT_SECRET");
-  if (!clientId || !clientSecret) {
-    throw new Error("Toast API credentials not configured. Set TOAST_CLIENT_ID and TOAST_CLIENT_SECRET in Script Properties.");
-  }
-
-  const res = UrlFetchApp.fetch("https://login.toasttab.com/usermgmt/v1/oauth/token", {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({
-      clientId: clientId,
-      clientSecret: clientSecret,
-      userAccessType: "TOAST_MACHINE_CLIENT"
-    }),
-    muteHttpExceptions: true
-  });
-
-  if (res.getResponseCode() !== 200) {
-    throw new Error("Toast authentication failed (HTTP " + res.getResponseCode() + ").");
-  }
-
-  const data = JSON.parse(res.getContentText());
-  return data.token && data.token.accessToken ? data.token.accessToken : data.accessToken || "";
-}
-
-function getToastGuidForVenue(venue) {
-  const props = PropertiesService.getScriptProperties();
-  const key = "TOAST_GUID_" + String(venue || "").trim().toUpperCase().replace(/\s+/g, "_");
-  const guid = props.getProperty(key);
-  if (!guid) {
-    throw new Error("No Toast GUID configured for venue \"" + venue + "\". Set " + key + " in Script Properties.");
-  }
-  return guid;
-}
-
-function fetchToastStaffForVenue(venue, dateISO) {
-  const guid = getToastGuidForVenue(venue);
-  const accessToken = getToastAccessToken();
-  const businessDate = dateISO || toISODate(new Date());
-
-  const url = "https://api.toasttab.com/labor/v1/timeEntries?businessDate=" + encodeURIComponent(businessDate);
-
-  const res = UrlFetchApp.fetch(url, {
-    method: "get",
-    headers: {
-      "Authorization": "Bearer " + accessToken,
-      "Toast-Restaurant-External-ID": guid,
-      "Content-Type": "application/json"
-    },
-    muteHttpExceptions: true
-  });
-
-  if (res.getResponseCode() !== 200) {
-    throw new Error("Toast labor API failed (HTTP " + res.getResponseCode() + ").");
-  }
-
-  const entries = JSON.parse(res.getContentText());
-  if (!Array.isArray(entries)) return [];
-
-  const staffMap = {};
-  entries.forEach(function(entry) {
-    const empName = normalizePersonName(
-      (entry.employeeFirstName || "") + " " + (entry.employeeLastName || "")
-    );
-    if (!empName) return;
-
-    const inTime = entry.inDate ? new Date(entry.inDate) : null;
-    const outTime = entry.outDate ? new Date(entry.outDate) : null;
-    var hours = 0;
-    if (inTime && outTime) {
-      hours = Math.round(((outTime - inTime) / 3600000) * 4) / 4;
-    } else if (inTime) {
-      hours = Math.round(((new Date() - inTime) / 3600000) * 4) / 4;
-    }
-    hours = Math.max(0, hours);
-
-    if (staffMap[empName]) {
-      staffMap[empName] += hours;
-    } else {
-      staffMap[empName] = hours;
-    }
-  });
-
-  var result = [];
-  for (var name in staffMap) {
-    if (staffMap.hasOwnProperty(name)) {
-      result.push({ name: name, hours: Math.round(staffMap[name] * 4) / 4 });
-    }
-  }
-  return result;
-}
-
 function doPost(e) {
   try {
     const payload = JSON.parse((e && e.postData && e.postData.contents) || "{}");
@@ -1060,12 +964,7 @@ function doPost(e) {
     }
 
     if (action === "fetchToastStaff") {
-      requireValidManagerAuth(payload);
-      const venue = String(payload.venue || "").trim();
-      if (!venue) throw new Error("Venue is required.");
-      const dateISO = payload.date || toISODate(new Date());
-      const staff = fetchToastStaffForVenue(venue, dateISO);
-      return createJsonResponse({ ok: true, staff: staff });
+      throw new Error("Time-card import is disabled. Enter staff and hours manually.");
     }
 
     const managerName = requireValidManagerAuth(payload);

@@ -31,10 +31,9 @@ response; they time out after 20 seconds rather than waiting indefinitely. PIN
 verification displays slow-service feedback after 3 seconds. Google Apps Script
 startup and network latency can still affect authentication.
 
-Selecting a venue opens the calculator without waiting for Toast. Time cards load
-in the background with a 12-second timeout. Failed or empty imports display a
-message and allow manual entry. Late responses never replace edits or submitted
-results; changing venue, resetting, or clearing the session cancels pending imports.
+Selecting or changing a venue does not make any staff-loading requests. Staff
+names and hours are entered manually. There is no Toast API integration or API
+credential requirement.
 
 ## Personal daily earnings
 

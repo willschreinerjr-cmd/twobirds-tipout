@@ -1224,7 +1224,6 @@ let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
 let personalEarningsProfile = null;
 let sendingReceipt = false;
-let staffLoadController = null;
 let toastTimer = null;
 let statusFadeTimer = null;
 let statusClearTimer = null;
@@ -1378,7 +1377,6 @@ function initVenueSelect(){
     animateVenueSwitch(select, venue);
     setVenuePhoto(venue);
 
-    loadVenueStaff(venue);
   });
 }
 
@@ -1648,7 +1646,6 @@ function renderVenueGateButtons(){
       setVenuePhoto(detectedVenue);
 
       unlockAppForManager(authenticatedManagerName);
-      loadVenueStaff(venue);
     };
     wrap.appendChild(btn);
   });
@@ -2694,67 +2691,6 @@ async function performAppsScriptRequest(endpoint, payload, signal){
   throw new Error("Backend request failed. Please try again.");
 }
 
-function cancelStaffLoad(){
-  if (staffLoadController) staffLoadController.abort();
-  staffLoadController = null;
-}
-
-async function loadVenueStaff(venue){
-  cancelStaffLoad();
-  const controller = new AbortController();
-  staffLoadController = controller;
-  const originalDraft = JSON.stringify(getDraft());
-  const managerToken = authenticatedManagerToken;
-  const isCurrent = () => staffLoadController === controller &&
-    detectedVenue === venue && authenticatedManagerToken === managerToken;
-  setStatus("Loading Toast time cards in the background. You can use the calculator now.");
-  try {
-    const data = await postToAppsScript(RECEIPT_ENDPOINT, {
-      action: "fetchToastStaff",
-      venue,
-      managerName: authenticatedManagerName,
-      authToken: authenticatedManagerToken
-    }, { timeoutMs: 12000, signal: controller.signal });
-    if (!isCurrent() || sendingReceipt) return;
-    if (JSON.stringify(getDraft()) !== originalDraft || latestReceipt) {
-      setStatus("Toast time cards arrived. Your edits were kept; no rows were replaced.");
-      return;
-    }
-    if (!Array.isArray(data.staff)) {
-      throw new Error("Toast returned invalid time-card data.");
-    }
-    if (data.staff.length) {
-      populateStaffFromToast(data.staff);
-      setStatus(`Loaded ${data.staff.length} staff from Toast.`, "success");
-    } else {
-      setStatus("No Toast time cards found for this venue today. Enter staff and hours manually.");
-    }
-  } catch (err) {
-    if (!isCurrent() || controller.signal.aborted || sendingReceipt) return;
-    console.warn("Toast time-card loading failed:", err.message);
-    setStatus(`Could not load Toast time cards: ${err.message} Enter staff and hours manually.`, "error", { autoHideMs: 0 });
-  } finally {
-    if (staffLoadController === controller) staffLoadController = null;
-  }
-}
-
-function populateStaffFromToast(staffList){
-  if (!Array.isArray(staffList) || !staffList.length) return;
-
-  const body = $("staffBody");
-  if (!body) return;
-  body.innerHTML = "";
-
-  staffList.forEach((person, idx) => {
-    const name = String(person.name || "").trim();
-    const hours = person.hours ? String(person.hours) : "";
-    const role = idx === 0 ? "Shift Manager" : "Bartender";
-    addStaff(role, name, hours, false);
-  });
-
-  showToast(`Loaded ${staffList.length} staff from Toast`);
-}
-
 async function authenticateManagerPin(pin){
   const cleanPin = String(pin || "").replace(/\D+/g, "").slice(0, 4);
   if (cleanPin.length !== 4) {
@@ -2801,7 +2737,6 @@ async function validateManagerSession(name, token){
 }
 
 function clearManagerSessionStorage(){
-  cancelStaffLoad();
   authenticatedManagerName = "";
   authenticatedManagerToken = "";
   personalEarningsProfile = null;
@@ -2895,7 +2830,6 @@ async function sendReceipt(){
 }
 
 function hardReset(){
-  cancelStaffLoad();
   $("pot").value = "$";
   $("creditPot").value = "";
   $("guestCount").value = "";

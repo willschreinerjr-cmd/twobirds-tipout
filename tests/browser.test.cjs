@@ -331,17 +331,14 @@ test("personal earnings require Will's server profile and remain hidden for othe
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
 });
 
-test("venue opens before delayed Toast response and preserves edits when it arrives", async t => {
+test("venue entry and switching make no network requests and preserve manual time cards", async t => {
   const page = await openCalculator(t);
-  let release;
-  const pending = new Promise(resolve => { release = resolve; });
-  let requested;
-  const started = new Promise(resolve => { requested = resolve; });
+  const requests = [];
   await page.route("https://script.google.com/**", async route => {
-    requested();
-    await pending;
-    await route.fulfill({ json: { ok: true, staff: [{ name: "Imported Staff", hours: 8 }] } });
+    requests.push(route.request().postDataJSON());
+    await route.abort();
   });
+  await soloTimeCard(page);
   await page.evaluate(() => {
     authenticatedManagerName = "Test Manager";
     authenticatedManagerToken = "test-token";
@@ -350,49 +347,19 @@ test("venue opens before delayed Toast response and preserves edits when it arri
   });
   const start = Date.now();
   await page.locator("#venueGateButtons button").first().click();
-  await started;
   await page.waitForFunction(() => !document.body.classList.contains("pin-gate-active"), { timeout: 2000 });
-  assert.ok(Date.now() - start < 2000, "venue access must not wait for Toast");
+  assert.ok(Date.now() - start < 2000, "venue access must not wait for a network request");
   await page.waitForFunction(() => document.getElementById("pinGate").style.display === "none");
-  assert.match(await page.locator("#sendStatus").textContent(), /background/);
-  await page.locator("#staffBody input").first().fill("My Staff");
-  release();
-  await page.waitForFunction(() => document.getElementById("sendStatus").textContent.includes("Your edits were kept"));
-  assert.equal(await page.locator("#staffBody input").first().inputValue(), "My Staff");
+  await page.locator("#venueSelect").selectOption("Starling");
+  await page.waitForTimeout(300);
+  assert.deepEqual(requests, []);
+  assert.equal(await page.locator("#staffBody input").first().inputValue(), "Test Manager");
+  assert.equal(await page.locator(".hours-input").inputValue(), "1");
+  assert.equal(await page.locator("#sendStatus").textContent(), "");
 });
 
-test("venue staff imports unchanged drafts and ignores obsolete venue responses", async t => {
+test("authentication requests retain a bounded timeout", async t => {
   const page = await openCalculator(t);
-  await page.route("https://script.google.com/**", async route => {
-    const request = route.request().postDataJSON();
-    await route.fulfill({ json: { ok: true, staff: [{ name: `${request.venue} Staff`, hours: 4 }] } });
-  });
-  await page.evaluate(async () => {
-    authenticatedManagerName = "Test Manager";
-    authenticatedManagerToken = "test-token";
-    detectedVenue = "Ivy House";
-    await loadVenueStaff("Ivy House");
-  });
-  assert.equal(await page.locator("#staffBody input").first().inputValue(), "Ivy House Staff");
-  await page.evaluate(async () => {
-    detectedVenue = "Starling";
-    const stale = loadVenueStaff("Ivy House");
-    const current = loadVenueStaff("Starling");
-    await Promise.all([stale, current]);
-  });
-  assert.equal(await page.locator("#staffBody input").first().inputValue(), "Starling Staff");
-});
-
-test("timeouts are bounded and failed background loads leave the calculator usable", async t => {
-  const page = await openCalculator(t);
-  await page.route("https://script.google.com/**", route => route.abort("failed"));
-  await page.evaluate(async () => {
-    authenticatedManagerName = "Test Manager";
-    authenticatedManagerToken = "test-token";
-    detectedVenue = "Ivy House";
-    await loadVenueStaff("Ivy House");
-  });
-  assert.match(await page.locator("#sendStatus").textContent(), /Could not load Toast time cards/);
   await fill(page, "pot", "100");
   assert.equal(await page.locator("#pot").inputValue(), "$100");
   const timeoutMessage = await page.evaluate(async () => {
