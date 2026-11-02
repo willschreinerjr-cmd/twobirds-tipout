@@ -397,6 +397,70 @@ test("personal earnings require Will's server profile and remain hidden for othe
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
 });
 
+test("Renee sees role-specific wages and downloads her own PDF earnings receipt", async t => {
+  const page = await openCalculator(t, 390);
+  await page.route("https://script.google.com/**", async route => {
+    const request = route.request().postDataJSON();
+    await route.fulfill({ json: {
+      ok: true, valid: true,
+      personalEarningsProfile: request.managerName === "Renee Ehlers" ? {
+        owner: "Renee Ehlers",
+        roleRates: { Bartender: 12, "Shift Manager": 14 },
+        withholdingRate: 0.2074821353509878
+      } : null
+    } });
+  });
+  await page.evaluate(async () => {
+    authenticatedManagerName = "Renee Ehlers";
+    authenticatedManagerToken = "test-renee-session";
+    await validateManagerSession(authenticatedManagerName, authenticatedManagerToken);
+    document.getElementById("staffBody").innerHTML = "";
+    addStaff("Bartender", "Renee Ehlers", "3", false);
+    addStaff("Shift Manager", "Renee Ehlers", "2", false);
+    addStaff("Bartender", "Someone Else", "1", false);
+    document.getElementById("venueSelect").value = "Ivy House";
+    detectedVenue = "Ivy House";
+  });
+  assert.equal(await page.locator("#personalEarnings").isVisible(), true);
+  assert.match(await page.locator("#personalEarningsTitle").textContent(), /Renee Ehlers/);
+  assert.match(await page.locator("#personalEarningsHelp").textContent(), /3 hours at \$12\.00\/hour/);
+  assert.match(await page.locator("#personalEarningsHelp").textContent(), /2 hours at \$14\.00\/hour/);
+  await fill(page, "creditPot", "100");
+  await fill(page, "guestCount", "100");
+  await text(page, "personalWages", "$64.00");
+  await text(page, "personalTips", "$83.33");
+  await text(page, "personalGuarantee", "$250.00");
+  await text(page, "personalGross", "$397.33");
+  await text(page, "personalNet", "$314.89");
+  await text(page, "personalHourly", "$79.47/hr");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: () => false });
+  });
+  const pending = page.waitForEvent("download");
+  await page.locator("#downloadPersonalEarnings").click();
+  const download = await pending;
+  assert.match(download.suggestedFilename(), /^renee-ehlers-earnings-.*-ivy-house\.pdf$/);
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdf = await getDocument({ data: new Uint8Array(Buffer.concat(chunks)), useSystemFonts: true }).promise;
+  try {
+    assert.equal(pdf.numPages, 1);
+    const content = await (await pdf.getPage(1)).getTextContent();
+    const labels = content.items.filter(item => item.str.trim()).map(item => item.str);
+    assert.ok(labels.includes("Renee Ehlers"));
+    assert.ok(labels.includes("$397.33"));
+    assert.ok(labels.includes("$314.89"));
+    assert.ok(labels.includes("$79.47/hr"));
+    assert.ok(labels.includes("$250.00"));
+    assert.ok(!labels.some(label => /Will Schreiner|Without Tip Minimum|With Tip Minimum/.test(label)));
+  } finally {
+    await pdf.destroy();
+    await download.delete();
+  }
+});
+
 test("Will can save a one-page earnings PDF with exact totals and native file sharing", async t => {
   const page = await openCalculator(t, 320);
   await page.evaluate(() => {

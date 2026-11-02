@@ -151,3 +151,37 @@ test("personal earnings use only Will's time cards and tax wages plus tips once"
   assert.equal(partialHours.hourlyGross, 55);
   assert.equal(partialHours.hourlyNet, 43.59);
 });
+
+test("Renee's wages use her role-specific hourly rates and shared tax estimate", () => {
+  const { calculatePersonalEarnings } = loadCalculations();
+  const profile = {
+    owner: "Renee Ehlers",
+    roleRates: { Bartender: 12, "Shift Manager": 14 },
+    withholdingRate: 0.2074821353509878
+  };
+  const people = [
+    { role: "Bartender", name: "Renee Ehlers", hours: 3 },
+    { role: "Shift Manager", name: "Renee Ehlers", hours: 2 },
+    { role: "Bartender", name: "Someone Else", hours: 1 }
+  ];
+  const result = calculateEventTips(0, 100, people, 100);
+  const earnings = calculatePersonalEarnings(result, profile);
+  assert.equal(earnings.hours, 5);
+  assert.deepEqual(JSON.parse(JSON.stringify(earnings.roleHours)), { Bartender: 3, "Shift Manager": 2 });
+  assert.equal(earnings.wages, 64);
+  assert.equal(earnings.tips, 83.33);
+  assert.equal(earnings.paycheckShare, 250);
+  assert.equal(earnings.withoutMinimum.gross, 147.33);
+  assert.equal(earnings.withoutMinimum.tax, 30.57);
+  assert.equal(earnings.withoutMinimum.net, 116.76);
+  assert.equal(earnings.gross, 397.33);
+  assert.equal(earnings.tax, 82.44);
+  assert.equal(earnings.net, 314.89);
+  assert.equal(earnings.hourlyGross, 79.47);
+  assert.equal(earnings.hourlyNet, 62.98);
+  const unsupported = calculatePersonalEarnings(calculateEventTips(10, 0, [
+    { role: "Training", name: "Renee Ehlers", hours: 1 },
+    { role: "Bartender", name: "Someone Else", hours: 1 }
+  ], null), profile);
+  assert.match(unsupported.error, /No hourly rate is set for your Training shift/);
+});

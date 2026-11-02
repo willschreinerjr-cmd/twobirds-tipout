@@ -46,13 +46,19 @@ credential requirement.
 
 ## Personal daily earnings
 
-Only the existing authenticated Will Schreiner account receives a personal
-earnings profile from the backend. No additional password is embedded in the
-page. Its private-in-the-UI section uses Will's own named time card(s) at $15/hour
-plus his cash payouts and credit payouts. Two separate bottom sections compare:
+Only the existing authenticated Will Schreiner and Renee Ehlers accounts receive
+their matching personal earnings profiles from the backend. No additional PINs
+are embedded in the page. Each private-in-the-UI section uses only that
+employee's named time card(s), tips, and actual role rate. Will earns $15/hour.
+Renee earns $12/hour as a bartender and $14/hour as shift manager. Her role
+rates are weighted by the hours on each matching time card. If she is assigned
+an unsupported role, her personal totals and download are paused until the
+time-card role is corrected.
 
-- **Without Tip Minimum:** hourly wages plus Will's actual tips after tip-out.
-- **With Tip Minimum:** those same earnings plus only Will's allocated guarantee
+The two bottom sections compare:
+
+- **Without Tip Minimum:** hourly wages plus the employee's actual tips after tip-out.
+- **With Tip Minimum:** those same earnings plus only the employee's allocated guarantee
   paycheck share, using the existing time-card distribution. A valid guest count
   is required. The extra-pay and earnings details appear only when the event
   falls below the minimum. When the minimum is met, only the green status
@@ -63,27 +69,29 @@ plus his cash payouts and credit payouts. Two separate bottom sections compare:
   No colored status is shown without a valid guest count.
 
 Each section shows before-tax earnings, estimated tax, and estimated after-tax
-earnings. The shared summary shows Will's hours, hourly wages, and total tips.
+earnings. The shared summary shows the employee's hours, hourly wages, and total
+tips.
 Both comparisons highlight effective hourly earnings (total earnings divided by
-Will's hours), before and after estimated tax. Daily totals before and after
+the employee's hours), before and after estimated tax. Daily totals before and after
 estimated tax are the largest figures in the personal section. Hourly figures
-are also included in the PDF receipt. These are earnings including tips,
-not a change to the $15 wage.
-Estimated after-tax earnings use a 20.75% effective withholding rate derived
-from one supplied paystub. The unrounded rate is used internally; tax and net
+are also included in the PDF receipt. These are earnings including tips, not
+changes to the hourly wage. Estimated after-tax earnings for both accounts use
+the same 20.75% effective withholding method from the supplied paystub, as
+requested. The unrounded rate is used internally; tax and net
 amounts round to cents. This includes cash already received and is not a paycheck
 deposit estimate or an exact payroll tax calculation.
 
-Will's section offers **Save Earnings (PDF)**: a compact, single-page printable
+Each authorized employee's section offers **Save Earnings (PDF)**: a compact,
+single-page printable
 receipt with a TwoBirds heading, employee, today's local date, venue, hours,
 and a large before-tax total. A short breakdown lists whole-dollar cash tips,
-credit tips and wages to cents, and a paycheck guarantee only when Will's
+credit tips and wages to cents, and a paycheck guarantee only when the employee's
 additional share is positive. Estimated after-tax earnings and effective
 before-tax hourly earnings follow. There are no duplicate comparisons, guest
 counts, or tax-rate explanations. Totals include the applicable guarantee and
 cash tips already received; the footer identifies the estimate as not a paycheck
 deposit. PDF text is selectable and vector-based for clear zooming and printing.
-Downloads require Will's positive hours and a venue and use current inputs,
+Downloads require the employee's positive hours and a venue and use current inputs,
 without sending a receipt or uploading the record. Files are individual
 snapshots, not an automatically maintained earnings history. PDF generation
 runs locally without a production dependency, external font, or server call.

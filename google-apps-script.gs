@@ -98,12 +98,20 @@ function requireValidManagerAuth(payload) {
 }
 
 function getPersonalEarningsProfile(managerName) {
-  if (String(managerName || "").trim().toLowerCase() !== "will schreiner") return null;
-  return {
-    owner: "Will Schreiner",
-    hourlyRate: 15,
-    withholdingRate: 0.2074821353509878
+  const cleanName = String(managerName || "").trim().toLowerCase();
+  const profiles = {
+    "will schreiner": {
+      owner: "Will Schreiner",
+      hourlyRate: 15,
+      withholdingRate: 0.2074821353509878
+    },
+    "renee ehlers": {
+      owner: "Renee Ehlers",
+      roleRates: { Bartender: 12, "Shift Manager": 14 },
+      withholdingRate: 0.2074821353509878
+    }
   };
+  return profiles[cleanName] || null;
 }
 
 function moneyWhole(n) {

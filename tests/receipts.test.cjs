@@ -50,7 +50,7 @@ test("receipt preserves cash overage, exact credit cents, combined tips and payc
   assert.ok(rows.some(row => row[3] === "$15.52"));
 });
 
-test("backend offers personal earnings only to the authenticated Will account", () => {
+test("backend offers each personal profile only to its matching authenticated account", () => {
   const source = fs.readFileSync(path.join(root, "google-apps-script.gs"), "utf8");
   const helper = source.slice(source.indexOf("function getPersonalEarningsProfile("), source.indexOf("function moneyWhole("));
   const context = vm.createContext({});
@@ -61,4 +61,10 @@ test("backend offers personal earnings only to the authenticated Will account", 
   assert.equal(profile.owner, "Will Schreiner");
   assert.equal(profile.hourlyRate, 15);
   assert.ok(profile.withholdingRate > 0 && profile.withholdingRate < 1);
+  const renee = context.getPersonalEarningsProfile("Renee Ehlers");
+  assert.deepEqual(JSON.parse(JSON.stringify(renee.roleRates)), { Bartender: 12, "Shift Manager": 14 });
+  assert.equal(renee.withholdingRate, profile.withholdingRate);
+  assert.equal(context.getPersonalEarningsProfile("Someone Else"), null);
+  assert.equal(context.getPersonalEarningsProfile("Renee"), null);
+  assert.equal(context.getPersonalEarningsProfile("renee ehlers").owner, "Renee Ehlers");
 });

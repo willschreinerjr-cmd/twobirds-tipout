@@ -978,7 +978,7 @@
         </div>
       </section>
       <section id="personalEarnings" class="guarantee-section" aria-labelledby="personalEarningsTitle" aria-live="polite" hidden>
-        <h2 id="personalEarningsTitle">Will Schreiner's Daily Earnings</h2>
+        <h2 id="personalEarningsTitle">Personal Daily Earnings</h2>
         <p id="personalEarningsHelp" class="field-help"></p>
         <div id="personalEarningsValues" hidden>
           <div class="guarantee-line"><span>Hourly Wages:</span><span id="personalWages"></span></div>
@@ -1080,7 +1080,18 @@ function calculatePersonalEarnings(result, profile){
   ).filter(index => index >= 0);
   if (!indexes.length) return null;
   const hours = indexes.reduce((sum, index) => sum + result.cash.entries[index].hours, 0);
-  const wages = Math.round(hours * profile.hourlyRate * 100) / 100;
+  const roleHours = {};
+  const wageCents = [];
+  for (const index of indexes) {
+    const entry = result.cash.entries[index];
+    const hourlyRate = profile.roleRates ? profile.roleRates[entry.role] : profile.hourlyRate;
+    if (!Number.isFinite(hourlyRate)) {
+      return { error: `No hourly rate is set for your ${entry.role} shift.` };
+    }
+    roleHours[entry.role] = (roleHours[entry.role] || 0) + entry.hours;
+    wageCents.push(Math.round(entry.hours * hourlyRate * 100));
+  }
+  const wages = wageCents.reduce((sum, cents) => sum + cents, 0) / 100;
   const tips = Math.round(indexes.reduce((sum, index) =>
     sum + result.cash.entries[index].tipout + result.credit.entries[index].tipout, 0) * 100) / 100;
   const paycheckShare = Math.round(indexes.reduce((sum, index) => sum + result.paycheck.entries[index].tipout, 0) * 100) / 100;
@@ -1092,7 +1103,7 @@ function calculatePersonalEarnings(result, profile){
   const net = Math.round((gross - tax) * 100) / 100;
   withoutMinimum.hourlyGross = Math.round(baseGross / hours * 100) / 100;
   withoutMinimum.hourlyNet = Math.round(withoutMinimum.net / hours * 100) / 100;
-  return { hours, wages, tips, paycheckShare, withoutMinimum, gross, tax, net,
+  return { hours, wages, tips, roleHours, paycheckShare, withoutMinimum, gross, tax, net,
     hourlyGross: Math.round(gross / hours * 100) / 100,
     hourlyNet: Math.round(net / hours * 100) / 100 };
 }
@@ -2149,17 +2160,31 @@ function updateResults(){
 }
 
 function readPersonalEarningsProfile(value, managerName){
-  if (managerName.trim().toLowerCase() !== "will schreiner" || !value ||
-      value.owner !== "Will Schreiner" || value.hourlyRate !== 15 ||
+  const cleanManagerName = managerName.trim().toLowerCase();
+  const expectedOwners = { "will schreiner": "Will Schreiner", "renee ehlers": "Renee Ehlers" };
+  if (!value || !expectedOwners[cleanManagerName] ||
+      value.owner !== expectedOwners[cleanManagerName] ||
       !Number.isFinite(value.withholdingRate) || value.withholdingRate < 0 || value.withholdingRate > 1) {
     return null;
   }
-  return { owner: value.owner, hourlyRate: value.hourlyRate, withholdingRate: value.withholdingRate };
+  if (cleanManagerName === "will schreiner" && value.hourlyRate === 15) {
+    return { owner: value.owner, hourlyRate: value.hourlyRate, withholdingRate: value.withholdingRate };
+  }
+  if (cleanManagerName === "renee ehlers" && value.roleRates?.Bartender === 12 &&
+      value.roleRates?.["Shift Manager"] === 14) {
+    return {
+      owner: value.owner,
+      roleRates: { Bartender: 12, "Shift Manager": 14 },
+      withholdingRate: value.withholdingRate
+    };
+  }
+  return null;
 }
 
 function canAccessPersonalEarnings(){
-  return authenticatedManagerName.trim().toLowerCase() === "will schreiner" &&
-    Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
+  return Boolean(personalEarningsProfile) &&
+    authenticatedManagerName.trim().toLowerCase() === personalEarningsProfile.owner.toLowerCase() &&
+    Boolean(authenticatedManagerToken);
 }
 
 function buildEarningsPdf(earnings, result, owner, date, venue){
@@ -2237,11 +2262,15 @@ async function downloadPersonalEarnings(preferShare = true){
   status.textContent = "";
   $("downloadPersonalEarningsFallback").hidden = true;
   if (!canAccessPersonalEarnings()) {
-    showToast("Sign in to Will Schreiner's account to download personal earnings.");
+    showToast("Sign in to your account to download personal earnings.");
     return;
   }
   const result = getCurrentCalculation();
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
+  if (earnings?.error) {
+    status.textContent = earnings.error;
+    return;
+  }
   if (!earnings || parseGuestCount($("guestCount").value).error || !validateCreditInput()) {
     status.textContent = "Enter your hours and fix any guest-count error or credit-tip error first.";
     return;
@@ -2256,7 +2285,7 @@ async function downloadPersonalEarnings(preferShare = true){
   const link = document.createElement("a");
   try {
     const file = new File([buildEarningsPdf(earnings, result, personalEarningsProfile.owner, date, venue)],
-      `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+      `${personalEarningsProfile.owner.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.pdf`,
       { type: "application/pdf" });
     if (preferShare && navigator.share && navigator.canShare?.({ files: [file] })) {
       status.textContent = "Choose Save to Files to keep your earnings.";
@@ -2306,13 +2335,26 @@ function updatePersonalEarnings(result){
     $(id).textContent = "";
   });
   $("personalEarningsHelp").textContent = "";
+  $("personalEarningsHelp").hidden = false;
+  $("downloadPersonalEarnings").hidden = false;
   if (!authorized) return;
+  $("personalEarningsTitle").textContent = `${personalEarningsProfile.owner}'s Daily Earnings`;
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
   if (!earnings) {
-    $("personalEarningsHelp").textContent = "Add Will Schreiner and enter your hours to see your earnings.";
+    $("personalEarningsHelp").textContent = `Add ${personalEarningsProfile.owner} and enter your hours to see your earnings.`;
     return;
   }
-  $("personalEarningsHelp").textContent = `${earnings.hours} hours at ${moneyRate(personalEarningsProfile.hourlyRate)}/hour`;
+  if (earnings.error) {
+    $("personalEarningsHelp").textContent = earnings.error;
+    $("downloadPersonalEarnings").hidden = true;
+    return;
+  }
+  const rateSummary = Object.entries(earnings.roleHours).map(([role, roleHours]) => {
+    const rate = personalEarningsProfile.roleRates
+      ? personalEarningsProfile.roleRates[role] : personalEarningsProfile.hourlyRate;
+    return `${roleHours} ${roleHours === 1 ? "hour" : "hours"} at ${moneyRate(rate)}/hour`;
+  }).join(" · ");
+  $("personalEarningsHelp").textContent = rateSummary;
   $("personalEarningsValues").hidden = false;
   $("personalWages").textContent = moneyRate(earnings.wages);
   $("personalTips").textContent = moneyRate(earnings.tips);
