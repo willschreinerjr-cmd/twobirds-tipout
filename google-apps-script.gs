@@ -97,8 +97,58 @@ function requireValidManagerAuth(payload) {
   return managerName;
 }
 
+function getPersonalEarningsProfile(managerName) {
+  if (String(managerName || "").trim().toLowerCase() !== "will schreiner") return null;
+  return {
+    owner: "Will Schreiner",
+    hourlyRate: 15,
+    withholdingRate: 0.2074821353509878
+  };
+}
+
 function moneyWhole(n) {
   return "$" + Math.floor(Number(n) || 0).toLocaleString("en-US");
+}
+
+function moneyAmount(n) {
+  return "$" + Number(n).toFixed(2);
+}
+
+function buildReceiptDetailRows(payload, entries) {
+  const rows = entries.length
+    ? entries.map(entry => [
+        entry.role || "",
+        normalizePersonName(entry.name),
+        entry.hours == null ? "" : Number(entry.hours),
+        moneyWhole(entry.tipout)
+      ])
+    : [["", "", "", ""]];
+  if (payload.creditPot != null) {
+    rows.push(["Credit Tip Pot:", moneyAmount(payload.creditPot), "", ""]);
+    rows.push(["Credit Tips", "Name", "Hours", "Tipout"]);
+    entries.forEach(entry => rows.push([
+      entry.role || "", normalizePersonName(entry.name),
+      entry.hours == null ? "" : Number(entry.hours), moneyAmount(entry.creditTipout)
+    ]));
+    rows.push(["With Credit Tips:", moneyAmount(payload.totalTipsEarned), "", ""]);
+  }
+  if (payload.guestCount != null) {
+    rows.push(["Number of Guests:", Number(payload.guestCount), "", ""]);
+    rows.push(["Guaranteed Tip Minimum:", moneyAmount(payload.guaranteedMinimum), "", ""]);
+    rows.push(["Total Tips Earned:", moneyAmount(payload.totalTipsEarned), "", ""]);
+    rows.push(["Additional Paycheck Amount:", moneyAmount(payload.paycheckDifference), "", ""]);
+    if (Number(payload.paycheckDifference) > 0) {
+      rows.push(["Paycheck Shares", "Name", "Hours", "Amount"]);
+      (payload.paycheckEntries || []).forEach(entry => rows.push([
+        entry.role || "", normalizePersonName(entry.name),
+        entry.hours == null ? "" : Number(entry.hours), moneyAmount(entry.tipout)
+      ]));
+      if (payload.paycheckRemainder) {
+        rows.push(["Time-card rounding adjustment:", moneyAmount(payload.paycheckRemainder), "", ""]);
+      }
+    }
+  }
+  return rows;
 }
 
 function normalizePersonName(name) {
@@ -993,16 +1043,19 @@ function doPost(e) {
         ok: true,
         managerName,
         authToken: session.authToken,
-        expiresAt: session.expiresAt
+        expiresAt: session.expiresAt,
+        personalEarningsProfile: getPersonalEarningsProfile(managerName)
       });
     }
 
     if (action === "validateManagerSession") {
       const managerName = String(payload.managerName || "").trim();
       const authToken = String(payload.authToken || "").trim();
+      const valid = validateManagerSession(managerName, authToken);
       return createJsonResponse({
         ok: true,
-        valid: validateManagerSession(managerName, authToken)
+        valid,
+        personalEarningsProfile: valid ? getPersonalEarningsProfile(managerName) : null
       });
     }
 
@@ -1046,14 +1099,7 @@ function doPost(e) {
         return 0;
       });
     const hasNotes = notes.length > 0;
-    const detailRows = entries.length
-      ? entries.map(entry => [
-          entry.role || "",
-          normalizePersonName(entry.name),
-          entry.hours == null ? "" : Number(entry.hours),
-          moneyWhole(entry.tipout)
-        ])
-      : [["", "", "", ""]];
+    const detailRows = buildReceiptDetailRows(payload, entries);
 
     const rows = [
       [payload.venue || "", targetDate || payload.date || "", "", ""],

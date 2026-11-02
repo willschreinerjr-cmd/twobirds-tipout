@@ -589,6 +589,19 @@
 
     .results-card{ background:linear-gradient(180deg,#ffffff,#f9fafb); }
     .results-empty{ color:var(--muted); font-size:14px; padding:12px 2px; }
+    .optional-inputs{ margin-top:12px; }
+    .field-help{ color:var(--muted); font-size:12px; margin:6px 0 0; }
+    .field-error{ color:#b91c1c; font-size:13px; margin:6px 0 0; }
+    .tip-summary{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px 24px; margin-bottom:14px; }
+    .cash-total{ font-size:24px; font-weight:900; }
+    .credit-result{ color:var(--muted); font-size:14px; font-weight:500; }
+    [hidden]{ display:none !important; }
+    .payout-values{ display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:baseline; gap:4px 12px; }
+    .guarantee-section{ border-top:1px solid var(--border); margin-top:18px; padding-top:16px; }
+    .guarantee-section h2{ font-size:16px; margin:0 0 12px; }
+    .guarantee-line{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 16px; margin:8px 0; font-size:14px; }
+    .paycheck-owed{ color:var(--green-dark); font-weight:800; }
+    .guarantee-met{ color:var(--muted); font-size:13px; }
     .results-card thead th:nth-child(2),
     .results-card tbody td:nth-child(2){ text-align:center; }
 
@@ -730,7 +743,11 @@
       .results-card td{
         padding-left:10px;
         padding-right:10px;
+        white-space:normal;
       }
+      .results-card td:first-child{ overflow-wrap:anywhere; }
+      .payout-values{ flex-direction:column; align-items:flex-end; }
+      .payout-values b{ white-space:nowrap; }
       .results-card th:first-child,
       .results-card td:first-child{
         padding-left:0;
@@ -865,8 +882,23 @@
     <div class="card">
       <div class="row">
         <div>
-          <label>Total Tip Pot ($)</label>
+          <label for="pot">Total Tip Pot ($)</label>
           <input id="pot" type="text" inputmode="numeric" pattern="[0-9$,.]*" value="$" />
+          <p class="field-help">Cash tips</p>
+        </div>
+      </div>
+
+      <div class="row optional-inputs">
+        <div>
+          <label for="creditPot">Credit Tips ($) (optional)</label>
+          <input id="creditPot" type="text" inputmode="numeric" pattern="[0-9$,.]*" placeholder="$" aria-describedby="creditHelp" />
+          <p id="creditHelp" class="field-help">Uses the same time cards and tip-out rules as cash.</p>
+        </div>
+        <div>
+          <label for="guestCount">Number of Guests (optional)</label>
+          <input id="guestCount" type="text" inputmode="numeric" pattern="[0-9]*" aria-describedby="guestHelp guestError" />
+          <p id="guestHelp" class="field-help">$4 per guest, guaranteed across the event.</p>
+          <p id="guestError" class="field-error" role="alert" hidden></p>
         </div>
       </div>
 
@@ -905,8 +937,12 @@
     </div>
 
     <div class="card results-card" id="resultsCard" style="display:none;">
-      <div id="resultsEmpty" class="results-empty ui-fade">Add staff rows, then click Calculate to preview tipouts.</div>
-      <table>
+      <div id="tipSummary" class="tip-summary" aria-live="polite" hidden>
+        <div class="cash-total">Cash Tips: <span id="cashTotal"></span></div>
+        <div id="combinedResult" class="credit-result" hidden>With Credit Tips: <span id="combinedTotal"></span></div>
+      </div>
+      <div id="resultsEmpty" class="results-empty ui-fade">Add staff hours to preview tipouts. Calculate &amp; Send Receipt sends the current results.</div>
+      <table id="payoutTable" hidden>
         <thead>
           <tr>
             <th>Name</th>
@@ -916,6 +952,34 @@
         </thead>
         <tbody id="resultsBody"></tbody>
       </table>
+      <section id="guaranteeSection" class="guarantee-section" aria-labelledby="guaranteeTitle" aria-live="polite" hidden>
+        <h2 id="guaranteeTitle">Wedding Tip Guarantee</h2>
+        <div class="guarantee-line"><span>Guaranteed Tip Minimum:</span><span id="guaranteedMinimum"></span></div>
+        <div class="guarantee-line"><span>Total Tips Earned:</span><span id="totalTipsEarned"></span></div>
+        <div id="paycheckLine" class="guarantee-line"><span>Additional Paycheck Amount:</span><span id="paycheckAmount"></span></div>
+        <p id="guaranteeMet" class="guarantee-met" hidden>Tip minimum met &mdash; No additional paycheck amount needed.</p>
+        <div id="paycheckDistribution" hidden>
+          <table>
+            <thead><tr><th>Name</th><th class="right">Additional Paycheck</th></tr></thead>
+            <tbody id="paycheckBody"></tbody>
+          </table>
+          <p class="field-help">Shares use the same time cards, training percentage, and whole-dollar rounding as cash tips. Any rounding adjustment is shown below.</p>
+          <p id="paycheckRemainder" class="field-help" hidden></p>
+        </div>
+      </section>
+      <section id="personalEarnings" class="guarantee-section" aria-labelledby="personalEarningsTitle" aria-live="polite" hidden>
+        <h2 id="personalEarningsTitle">Your Daily Earnings</h2>
+        <p id="personalEarningsHelp" class="field-help"></p>
+        <div id="personalEarningsValues" hidden>
+          <div class="guarantee-line"><span>Hourly Wages:</span><span id="personalWages"></span></div>
+          <div class="guarantee-line"><span>Your Cash &amp; Credit Tips:</span><span id="personalTips"></span></div>
+          <div class="guarantee-line"><span>Your Additional Paycheck Share:</span><span id="personalGuarantee"></span></div>
+          <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalGross"></strong></div>
+          <div class="guarantee-line"><span id="personalTaxLabel">Estimated Tax:</span><span id="personalTax"></span></div>
+          <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalNet"></strong></div>
+          <p class="field-help">Estimate for this event's time card, including tips already received as cash. Uses your paystub's effective withholding rate, not an exact payroll tax calculation. Actual withholding varies by pay period; this is not your paycheck deposit.</p>
+        </div>
+      </section>
     </div>
 
     <datalist id="nameSuggestions"></datalist>
@@ -931,6 +995,62 @@ const $ = id => document.getElementById(id);
 
 function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
+
+function calculateTipPool(pot, people){
+  const payoutPeople = people.filter(person => Number.isFinite(person.hours) && person.hours > 0);
+  const trainingPeople = payoutPeople.filter(person => person.role === "Training");
+  const bartenderPeople = payoutPeople.filter(person => person.role !== "Training");
+  const trainingHours = trainingPeople.reduce((sum, person) => sum + person.hours, 0);
+  const bartenderHours = bartenderPeople.reduce((sum, person) => sum + person.hours, 0);
+  const trainingPool = trainingPeople.length ? pot * TRAINING_POOL_RATE : 0;
+  const trainingRate = trainingHours > 0 ? Math.round((trainingPool / trainingHours) * 100) / 100 : 0;
+  const baseRate = bartenderHours > 0 ? Math.round(((pot - trainingPool) / bartenderHours) * 100) / 100 : 0;
+  const entries = bartenderHours > 0 ? payoutPeople.map(person => {
+    const rate = person.role === "Training" ? trainingRate : baseRate;
+    return { role: person.role, name: person.name, hours: person.hours, rate, tipout: Math.floor(person.hours * rate) };
+  }) : [];
+  return {
+    entries, trainingPool, trainingRate, bartenderRate: baseRate,
+    bartenderCount: bartenderPeople.length,
+    totalEarned: entries.reduce((sum, entry) => sum + entry.tipout, 0)
+  };
+}
+
+function parseGuestCount(value){
+  const text = String(value).trim();
+  if (!text) return { count: null, error: "" };
+  const count = Number(text);
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(count) || count > Math.floor(Number.MAX_SAFE_INTEGER / 400)) {
+    return { count: null, error: "Enter a nonnegative whole number of guests within the supported range." };
+  }
+  return { count, error: "" };
+}
+
+function calculatePersonalEarnings(result, profile){
+  const normalize = name => String(name || "").trim().toLowerCase();
+  const indexes = result.cash.entries.map((entry, index) =>
+    normalize(entry.name) === normalize(profile.owner) ? index : -1
+  ).filter(index => index >= 0);
+  if (!indexes.length) return null;
+  const hours = indexes.reduce((sum, index) => sum + result.cash.entries[index].hours, 0);
+  const wages = Math.round(hours * profile.hourlyRate * 100) / 100;
+  const tips = indexes.reduce((sum, index) =>
+    sum + result.cash.entries[index].tipout + result.credit.entries[index].tipout, 0);
+  const paycheckShare = indexes.reduce((sum, index) => sum + result.paycheck.entries[index].tipout, 0);
+  const gross = Math.round((wages + tips + paycheckShare) * 100) / 100;
+  const tax = Math.round(gross * profile.withholdingRate * 100) / 100;
+  return { hours, wages, tips, paycheckShare, gross, tax, net: Math.round((gross - tax) * 100) / 100 };
+}
+
+function calculateEventTips(cashPot, creditPot, people, guestCount){
+  const cash = calculateTipPool(cashPot, people);
+  const credit = calculateTipPool(creditPot, people);
+  const totalEarned = cash.totalEarned + credit.totalEarned;
+  const guaranteedMinimum = guestCount === null ? null : guestCount * 4;
+  const paycheckDifference = guaranteedMinimum === null ? 0 : Math.max(0, guaranteedMinimum - totalEarned);
+  const paycheck = calculateTipPool(paycheckDifference, people);
+  return { cash, credit, totalEarned, guaranteedMinimum, paycheckDifference, paycheck };
+}
 
 const VENUES = ["Ivy House", "Starling", "Rivulet", "PSP", "Society"];
 const VENUE_PHOTO_BOOK = {
@@ -1086,6 +1206,7 @@ let activeNameSuggestionIndex = -1;
 let detectedVenue = "";
 let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
+let personalEarningsProfile = null;
 let sendingReceipt = false;
 let fetchingToastStaff = false;
 let toastTimer = null;
@@ -1524,6 +1645,7 @@ function renderVenueGateButtons(){
 }
 
 function unlockAppForManager(name){
+  updateResults();
   const gate = $("pinGate");
   if (gate) {
     gate.classList.add("is-leaving");
@@ -1548,6 +1670,7 @@ function unlockAppForManager(name){
 
 async function startPostPinVenueFlow(name){
   authenticatedManagerName = String(name || "").trim();
+  updateResults();
   document.body.style.overflow = "hidden";
   setManagerWelcome(authenticatedManagerName);
   setVenueGateGreeting(authenticatedManagerName);
@@ -1687,6 +1810,7 @@ function initManagerGate(){
       const auth = await authenticateManagerPin(pin);
       authenticatedManagerName = auth.managerName;
       authenticatedManagerToken = auth.authToken;
+      personalEarningsProfile = auth.personalEarningsProfile;
       try {
         sessionStorage.setItem(MANAGER_PIN_KEY, auth.managerName);
         sessionStorage.setItem(MANAGER_TOKEN_KEY, auth.authToken);
@@ -1912,10 +2036,92 @@ function showToast(message){
 
 function markUncalculated(){
   latestReceipt = null;
-  if ($("resultsBody").children.length === 0){
-    setElementVisible($("resultsCard"), true);
-    setElementVisible($("resultsEmpty"), true);
+  updateResults();
+}
+
+function getCurrentCalculation(){
+  const people = getUnifiedStaffRows().map(row => ({
+    role: row.role, name: row.name || row.role, hours: row.hours
+  }));
+  const guest = parseGuestCount($("guestCount").value);
+  return calculateEventTips(getPotNumber(), getPotNumber("creditPot"), people, guest.count);
+}
+
+function updateResults(){
+  const guest = parseGuestCount($("guestCount").value);
+  $("guestCount").setCustomValidity(guest.error);
+  $("guestCount").setAttribute("aria-invalid", String(Boolean(guest.error)));
+  $("guestError").textContent = guest.error;
+  $("guestError").hidden = !guest.error;
+
+  const result = getCurrentCalculation();
+  const hasCredit = /\d/.test($("creditPot").value);
+  const hasPayouts = result.cash.entries.length > 0;
+  $("tipSummary").hidden = !hasPayouts && guest.count === null;
+  $("cashTotal").textContent = moneyRate(result.cash.totalEarned);
+  $("combinedResult").hidden = !hasCredit;
+  $("combinedTotal").textContent = moneyRate(result.totalEarned);
+  $("payoutTable").hidden = !hasPayouts;
+  $("resultsBody").innerHTML = result.cash.entries.map((entry, index) => {
+    const creditEntry = result.credit.entries[index];
+    return `<tr>
+      <td>${escapeHtml(entry.name)}</td>
+      <td class="right">${moneyRate(entry.rate)}${hasCredit ? `<div class="credit-result">Credit: ${moneyRate(creditEntry.rate)}</div>` : ""}</td>
+      <td class="right"><div class="payout-values"><b>${moneyWhole(entry.tipout)}</b>${hasCredit ? `<span class="credit-result">With Credit Tips: ${moneyRate(entry.tipout + creditEntry.tipout)}</span>` : ""}</div></td>
+    </tr>`;
+  }).join("");
+  setElementVisible($("resultsCard"), true);
+  setElementVisible($("resultsEmpty"), !hasPayouts);
+  $("guaranteeSection").hidden = guest.count === null;
+  $("guaranteedMinimum").textContent = moneyRate(result.guaranteedMinimum || 0);
+  $("totalTipsEarned").textContent = moneyRate(result.totalEarned);
+  $("paycheckAmount").textContent = moneyRate(result.paycheckDifference);
+  $("paycheckLine").classList.toggle("paycheck-owed", result.paycheckDifference > 0);
+  $("guaranteeMet").hidden = result.paycheckDifference > 0;
+  $("paycheckDistribution").hidden = result.paycheckDifference <= 0 || !hasPayouts;
+  $("paycheckBody").innerHTML = result.paycheck.entries.map(entry =>
+    `<tr><td>${escapeHtml(entry.name)}</td><td class="right">${moneyRate(entry.tipout)}</td></tr>`
+  ).join("");
+  const remainder = result.paycheckDifference - result.paycheck.totalEarned;
+  $("paycheckRemainder").hidden = remainder === 0;
+  $("paycheckRemainder").textContent = `Time-card rounding adjustment: ${moneyRate(remainder)}`;
+  updatePersonalEarnings(result);
+}
+
+function readPersonalEarningsProfile(value, managerName){
+  if (managerName.trim().toLowerCase() !== "will schreiner" || !value ||
+      value.owner !== "Will Schreiner" || value.hourlyRate !== 15 ||
+      !Number.isFinite(value.withholdingRate) || value.withholdingRate < 0 || value.withholdingRate > 1) {
+    return null;
   }
+  return { owner: value.owner, hourlyRate: value.hourlyRate, withholdingRate: value.withholdingRate };
+}
+
+function updatePersonalEarnings(result){
+  const section = $("personalEarnings");
+  const authorized = authenticatedManagerName.trim().toLowerCase() === "will schreiner" &&
+    Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
+  section.hidden = !authorized;
+  $("personalEarningsValues").hidden = true;
+  ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet"].forEach(id => {
+    $(id).textContent = "";
+  });
+  $("personalEarningsHelp").textContent = "";
+  if (!authorized) return;
+  const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
+  if (!earnings) {
+    $("personalEarningsHelp").textContent = "Add Will Schreiner's time card with positive hours to see daily earnings.";
+    return;
+  }
+  $("personalEarningsHelp").textContent = `${earnings.hours} hours at ${moneyRate(personalEarningsProfile.hourlyRate)}/hour`;
+  $("personalEarningsValues").hidden = false;
+  $("personalWages").textContent = moneyRate(earnings.wages);
+  $("personalTips").textContent = moneyRate(earnings.tips);
+  $("personalGuarantee").textContent = moneyRate(earnings.paycheckShare);
+  $("personalGross").textContent = moneyRate(earnings.gross);
+  $("personalTaxLabel").textContent = `Estimated Tax (${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%):`;
+  $("personalTax").textContent = moneyRate(earnings.tax);
+  $("personalNet").textContent = moneyRate(earnings.net);
 }
 
 function enforceMoneyInput(input){
@@ -1929,8 +2135,8 @@ function enforceMoneyInput(input){
   });
 }
 
-function getPotNumber(){
-  return Math.floor(+(String($("pot").value || "").replace(/[^0-9]/g, "") || 0));
+function getPotNumber(id = "pot"){
+  return Math.floor(+(String($(id).value || "").replace(/[^0-9]/g, "") || 0));
 }
 
 function enforceLettersOnly(input){
@@ -2179,8 +2385,9 @@ function getMissingCalculationMessage(){
     missing.push(text);
   };
 
-  const pot = getPotNumber();
-  if (pot <= 0) pushMissing("tip pot");
+  const guest = parseGuestCount($("guestCount").value);
+  if (guest.error) return guest.error;
+  if (getPotNumber() + getPotNumber("creditPot") <= 0 && guest.count === null) pushMissing("tip pot");
 
   const staffRows = getUnifiedStaffRows();
   if (!staffRows.length) {
@@ -2215,6 +2422,9 @@ function getMissingCalculationMessage(){
 
     const hasPayoutRow = staffRows.some(row => (+row.inputs[1]?.value || 0) > 0);
     if (!hasPayoutRow) pushMissing("staff hours");
+    if (!staffRows.some(row => row.role !== "Training" && Number.isFinite(row.hours) && row.hours > 0)) {
+      pushMissing("bartender hours");
+    }
   }
 
   return missing.length ? `Missing: ${missing.join(" & ")}.` : "";
@@ -2229,6 +2439,8 @@ function getDraft(){
 
   return {
     pot: $("pot").value || "",
+    creditPot: $("creditPot").value || "",
+    guestCount: $("guestCount").value || "",
     notes: $("notes").value || "",
     staff
   };
@@ -2256,6 +2468,9 @@ function restoreDraft(){
 
     const potDigits = String(draft.pot || "").replace(/\D+/g, "");
     $("pot").value = "$" + (potDigits ? Number(potDigits).toLocaleString() : "");
+    const creditDigits = String(draft.creditPot || "").replace(/\D+/g, "");
+    $("creditPot").value = creditDigits ? "$" + Number(creditDigits).toLocaleString() : "";
+    $("guestCount").value = String(draft.guestCount ?? "");
     $("notes").value = String(draft.notes || "");
 
     $("staffBody").innerHTML = "";
@@ -2481,7 +2696,10 @@ async function authenticateManagerPin(pin){
     throw new Error("Authentication response was incomplete.");
   }
 
-  return { managerName, authToken, expiresAt };
+  return {
+    managerName, authToken, expiresAt,
+    personalEarningsProfile: readPersonalEarningsProfile(data.personalEarningsProfile, managerName)
+  };
 }
 
 async function validateManagerSession(name, token){
@@ -2495,8 +2713,12 @@ async function validateManagerSession(name, token){
       managerName,
       authToken
     });
+    personalEarningsProfile = data.valid
+      ? readPersonalEarningsProfile(data.personalEarningsProfile, managerName)
+      : null;
     return !!data.valid;
   } catch {
+    personalEarningsProfile = null;
     return false;
   }
 }
@@ -2504,6 +2726,8 @@ async function validateManagerSession(name, token){
 function clearManagerSessionStorage(){
   authenticatedManagerName = "";
   authenticatedManagerToken = "";
+  personalEarningsProfile = null;
+  updatePersonalEarnings(getCurrentCalculation());
   try {
     sessionStorage.removeItem(MANAGER_PIN_KEY);
     sessionStorage.removeItem(MANAGER_TOKEN_KEY);
@@ -2594,6 +2818,8 @@ async function sendReceipt(){
 
 function hardReset(){
   $("pot").value = "$";
+  $("creditPot").value = "";
+  $("guestCount").value = "";
   $("notes").value = "";
   $("staffBody").innerHTML = "";
   $("resultsBody").innerHTML = "";
@@ -2607,6 +2833,7 @@ function hardReset(){
 }
 
 enforceMoneyInput($("pot"));
+enforceMoneyInput($("creditPot"));
 try { history.scrollRestoration = "manual"; } catch {}
 scrollToTop();
 window.addEventListener("load", () => {
@@ -2616,6 +2843,10 @@ window.addEventListener("load", () => {
 $("pot").addEventListener("input", saveDraft);
 $("notes").addEventListener("input", saveDraft);
 $("pot").addEventListener("input", markUncalculated);
+["creditPot", "guestCount"].forEach(id => {
+  $(id).addEventListener("input", markUncalculated);
+  $(id).addEventListener("input", saveDraft);
+});
 $("staffBody").addEventListener("input", saveDraft);
 $("staffBody").addEventListener("input", markUncalculated);
 
@@ -2633,8 +2864,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-setElementVisible($("resultsCard"), true);
-setElementVisible($("resultsEmpty"), true);
+updateResults();
 
 $("addStaff").onclick = () => addStaff("Bartender", "", "", false);
 $("reset").onclick = hardReset;
@@ -2647,97 +2877,38 @@ $("calc").onclick = () => {
     return;
   }
 
-  $("resultsBody").innerHTML = "";
-  setElementVisible($("resultsCard"), true);
-  setElementVisible($("resultsEmpty"), false);
-  latestReceipt = null;
   setStatus("");
-
-  const pot = getPotNumber();
-  if (pot <= 0) return;
-
-  let hasInvalidName = false;
-  const staffRows = getUnifiedStaffRows();
-  const roleCounts = { "Shift Manager": 0, "Bartender": 0, "Training": 0 };
-  const normalizedRows = staffRows.map(row => {
-    const role = ["Shift Manager", "Bartender", "Training"].includes(row.role) ? row.role : "Bartender";
-    roleCounts[role] = (roleCounts[role] || 0) + 1;
-
-    const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
-    row.inputs[0].value = cleanedName;
-    if (cleanedName && !isValidTypedName(cleanedName)) {
-      hasInvalidName = true;
-    }
-
-    const fallbackName = `${role} ${roleCounts[role]}`;
-    return {
-      role,
-      name: cleanedName || fallbackName,
-      hours: +row.inputs[1]?.value || 0
-    };
-  });
-
-  const payoutPeople = normalizedRows.filter(r => r.hours > 0);
-
-  if ((roleCounts["Shift Manager"] || 0) > 1) {
+  if (getUnifiedStaffRows().filter(row => row.role === "Shift Manager").length > 1) {
     setStatus("Only one Shift Manager is allowed.", "error");
     return;
   }
 
-  if (hasInvalidName) {
-    setStatus("Names must contain at least 2 letters.", "error");
-    return;
-  }
-
-  if (!payoutPeople.length) return;
-
-  const trainingPeople = payoutPeople.filter(person => person.role === "Training");
-  const bartenderPeople = payoutPeople.filter(person => person.role !== "Training");
-  const trainingHours = trainingPeople.reduce((sum, person) => sum + person.hours, 0);
-  const bartenderHours = bartenderPeople.reduce((sum, person) => sum + person.hours, 0);
-  if (bartenderHours <= 0) {
-    setStatus("Add bartender hours to divide the remaining tip pool.", "error");
-    return;
-  }
-
-  const trainingPool = trainingPeople.length ? pot * TRAINING_POOL_RATE : 0;
-  const bartenderPool = pot - trainingPool;
-  const trainingRate = trainingHours > 0
-    ? Math.round((trainingPool / trainingHours) * 100) / 100
-    : 0;
-  const baseRate = Math.round((bartenderPool / bartenderHours) * 100) / 100;
-
-  const body = $("resultsBody");
-  const entries = [];
-
-  // Training receives 10% of the pot; the remaining pool is shared by bartenders.
-  payoutPeople.forEach(b => {
-    const rate = b.role === "Training" ? trainingRate : baseRate;
-    const tipout = Math.floor(b.hours * rate);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(b.name)}</td>
-      <td class="right">${moneyRate(rate)}</td>
-      <td class="right"><b>${moneyWhole(tipout)}</b></td>
-    `;
-    body.appendChild(tr);
-
-    entries.push({
-      role: b.role,
-      name: b.name,
-      hours: b.hours,
-      rate,
-      tipout
-    });
-  });
-
+  updateResults();
+  const result = getCurrentCalculation();
+  const hasCredit = /\d/.test($("creditPot").value);
   latestReceipt = {
-    totalPot: pot,
-    bartenderCount: bartenderPeople.length,
-    bartenderRate: baseRate,
-    trainingPool,
-    trainingRate,
-    entries
+    totalPot: getPotNumber(),
+    bartenderCount: result.cash.bartenderCount,
+    bartenderRate: result.cash.bartenderRate,
+    trainingPool: result.cash.trainingPool,
+    trainingRate: result.cash.trainingRate,
+    entries: result.cash.entries.map((entry, index) => ({
+      ...entry,
+      ...(hasCredit ? {
+        creditRate: result.credit.entries[index].rate,
+        creditTipout: result.credit.entries[index].tipout,
+        combinedTipout: entry.tipout + result.credit.entries[index].tipout
+      } : {})
+    })),
+    ...(hasCredit ? { creditPot: getPotNumber("creditPot"), totalTipsEarned: result.totalEarned } : {}),
+    ...(result.guaranteedMinimum !== null ? {
+      guestCount: parseGuestCount($("guestCount").value).count,
+      guaranteedMinimum: result.guaranteedMinimum,
+      totalTipsEarned: result.totalEarned,
+      paycheckDifference: result.paycheckDifference,
+      paycheckEntries: result.paycheck.entries,
+      paycheckRemainder: result.paycheckDifference - result.paycheck.totalEarned
+    } : {})
   };
 
   setElementVisible($("resultsCard"), true);

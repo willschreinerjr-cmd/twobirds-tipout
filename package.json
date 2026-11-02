@@ -1,0 +1,10 @@
+{
+  "name": "twobirds-tipout",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}
