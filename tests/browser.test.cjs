@@ -290,12 +290,16 @@ test("personal earnings require Will's server profile and remain hidden for othe
   await text(page, "personalBaseTax", "$46.68");
   await text(page, "personalBaseNet", "$178.32");
   assert.equal(await page.locator("#personalMinimumValues").isVisible(), false);
+  assert.equal(await page.locator("#personalMinimumStatus").isVisible(), false);
   assert.match(await page.locator("#personalMinimumHelp").textContent(), /Number of Guests/);
   await text(page, "personalGross", "$225.00");
   await text(page, "personalTax", "$46.68");
   await text(page, "personalNet", "$178.32");
   await fill(page, "guestCount", "100");
   await text(page, "personalGuarantee", "$250.00");
+  await text(page, "personalMinimumStatus", "Below minimum - extra pay is owed.");
+  assert.equal(await page.locator("#personalMinimumStatus").getAttribute("class"), "minimum-status below");
+  assert.equal(await page.locator("#personalMinimumStatus").evaluate(el => getComputedStyle(el).backgroundColor), "rgb(254, 242, 242)");
   await text(page, "personalGross", "$475.00");
   assert.equal(await page.locator("#personalMinimumValues").isVisible(), true);
   await text(page, "personalBaseGross", "$225.00");
@@ -307,8 +311,21 @@ test("personal earnings require Will's server profile and remain hidden for othe
   await text(page, "personalGross", "$210.00");
   await text(page, "personalBaseGross", "$210.00");
   await text(page, "personalGuarantee", "$0.00");
+  await text(page, "personalMinimumStatus", "Minimum met - no extra pay needed.");
+  assert.equal(await page.locator("#personalMinimumStatus").getAttribute("class"), "minimum-status met");
+  assert.equal(await page.locator("#personalMinimumStatus").evaluate(el => getComputedStyle(el).backgroundColor), "rgb(240, 253, 244)");
+  await fill(page, "guestCount", "40");
+  await fill(page, "pot", "110");
+  await text(page, "personalMinimumStatus", "Minimum met - no extra pay needed.");
+  await fill(page, "pot", "100");
+  await text(page, "personalMinimumStatus", "Below minimum - extra pay is owed.");
+  await fill(page, "guestCount", "37.5");
+  assert.equal(await page.locator("#personalMinimumStatus").isVisible(), false);
+  await fill(page, "guestCount", "0");
+  await text(page, "personalMinimumStatus", "Minimum met - no extra pay needed.");
   await fill(page, "guestCount", "");
   assert.equal(await page.locator("#personalMinimumValues").isVisible(), false);
+  assert.equal(await page.locator("#personalMinimumStatus").isVisible(), false);
   await page.locator("#staffBody input").first().fill("Another Person");
   assert.equal(await page.locator("#personalEarningsValues").isVisible(), false);
   assert.match(await page.locator("#personalEarningsHelp").textContent(), /Add Will Schreiner/);
@@ -371,7 +388,7 @@ test("Will can download current personal earnings comparisons without sending a 
     const date = await page.evaluate(() => todayLocalISO());
     assert.equal(download.suggestedFilename(), `will-schreiner-earnings-${date}-ivy-house.csv`);
     assert.deepEqual(rows[1].slice(0, 7), [date, "Ivy House", "Will Schreiner", "5", "15.00", "75.00", "150.00"]);
-    assert.match(rows[1][15], /not an exact payroll calculation/);
+    assert.match(rows[1][15], /Tax is an estimate/);
     await download.delete();
     return rows;
   }
@@ -387,7 +404,7 @@ test("Will can download current personal earnings comparisons without sending a 
   assert.deepEqual(rows[2].slice(10, 14), ["0.00", "225.00", "46.68", "178.32"]);
   await fill(page, "guestCount", "-1");
   await page.locator("#downloadPersonalEarnings").click();
-  assert.match(await page.locator("#personalDownloadStatus").textContent(), /correct any guest-count error/);
+  assert.match(await page.locator("#personalDownloadStatus").textContent(), /fix any guest-count error/);
   assert.equal(downloads.length, 3);
   await fill(page, "guestCount", "");
   const bounds = await page.locator("#downloadPersonalEarnings").boundingBox();

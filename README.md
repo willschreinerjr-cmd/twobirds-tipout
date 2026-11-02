@@ -46,6 +46,10 @@ plus his cash payouts and credit payouts. Two separate bottom sections compare:
 - **With Tip Minimum:** those same earnings plus only Will's allocated guarantee
   paycheck share, using the existing time-card distribution. A valid guest count
   is required; when the event minimum is met, both totals are identical.
+  A green **Minimum met** message means no extra pay is needed; a red
+  **Below minimum** message means extra pay is owed. This checks the event's
+  actual combined tips against its $4-per-guest minimum, not hourly wages.
+  No colored status is shown without a valid guest count.
 
 Each section shows before-tax earnings, estimated tax, and estimated after-tax
 earnings. The shared summary shows Will's hours, hourly wages, and total tips.

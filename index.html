@@ -602,6 +602,9 @@
     .guarantee-line{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 16px; margin:8px 0; font-size:14px; }
     .paycheck-owed{ color:var(--green-dark); font-weight:800; }
     .guarantee-met{ color:var(--muted); font-size:13px; }
+    .minimum-status{ border:1px solid; border-radius:10px; padding:10px 12px; margin:0 0 10px; font-size:14px; font-weight:700; }
+    .minimum-status.met{ color:#166534; background:#f0fdf4; border-color:#86efac; }
+    .minimum-status.below{ color:#991b1b; background:#fef2f2; border-color:#fca5a5; }
     .results-card thead th:nth-child(2),
     .results-card tbody td:nth-child(2){ text-align:center; }
 
@@ -975,24 +978,25 @@
           <div class="guarantee-line"><span>Your Cash &amp; Credit Tips:</span><span id="personalTips"></span></div>
           <section class="guarantee-section" aria-labelledby="withoutMinimumTitle">
             <h2 id="withoutMinimumTitle">Without Tip Minimum</h2>
-            <p class="field-help">Your hourly wages plus your cash and credit tips after tip-out.</p>
+            <p class="field-help">Your hourly pay + your tips.</p>
             <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalBaseGross"></strong></div>
             <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalBaseTax"></span></div>
             <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalBaseNet"></strong></div>
           </section>
           <section class="guarantee-section" aria-labelledby="withMinimumTitle">
             <h2 id="withMinimumTitle">With Tip Minimum</h2>
+            <p id="personalMinimumStatus" class="minimum-status" hidden></p>
             <p id="personalMinimumHelp" class="field-help"></p>
             <div id="personalMinimumValues" hidden>
-              <div class="guarantee-line"><span>Your Additional Paycheck Share:</span><span id="personalGuarantee"></span></div>
+              <div class="guarantee-line"><span>Extra Pay Owed to You:</span><span id="personalGuarantee"></span></div>
               <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalGross"></strong></div>
               <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalTax"></span></div>
               <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalNet"></strong></div>
             </div>
           </section>
-          <p class="field-help">Estimate for this event's time card, including tips already received as cash. Uses your paystub's effective withholding rate, not an exact payroll tax calculation. Actual withholding varies by pay period; this is not your paycheck deposit.</p>
+          <p class="field-help">Tax is an estimate based on your paystub. Totals include cash tips you already received, so they are not your paycheck deposit.</p>
           <button id="downloadPersonalEarnings" type="button">Download Earnings (CSV)</button>
-          <p class="field-help">Save today's date, venue, hours, tips, and both earnings comparisons. Opens in Excel, Google Sheets, or Numbers. No receipt is sent.</p>
+          <p class="field-help">Save today's earnings to a spreadsheet. No receipt is sent.</p>
           <p id="personalDownloadStatus" class="field-help" role="status"></p>
         </div>
       </section>
@@ -2127,7 +2131,7 @@ function downloadPersonalEarnings(){
   const result = getCurrentCalculation();
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
   if (!earnings || parseGuestCount($("guestCount").value).error) {
-    status.textContent = "Add Will Schreiner's positive hours and correct any guest-count error before downloading.";
+    status.textContent = "Enter your hours and fix any guest-count error first.";
     return;
   }
   const date = todayLocalISO();
@@ -2137,7 +2141,7 @@ function downloadPersonalEarnings(){
     return;
   }
   const hasMinimum = result.guaranteedMinimum !== null;
-  const note = "Estimated taxes based on one paystub's effective withholding rate. Includes cash already received; not an exact payroll calculation or paycheck deposit.";
+  const note = "Tax is an estimate based on your paystub. Includes cash tips already received. Not your paycheck deposit.";
   const shared = [date, venue, personalEarningsProfile.owner, earnings.hours,
     personalEarningsProfile.hourlyRate.toFixed(2), earnings.wages.toFixed(2), earnings.tips.toFixed(2),
     parseGuestCount($("guestCount").value).count ?? "", hasMinimum ? result.guaranteedMinimum.toFixed(2) : ""];
@@ -2167,7 +2171,7 @@ function downloadPersonalEarnings(){
     link.download = `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.csv`;
     document.body.appendChild(link);
     link.click();
-    status.textContent = "Earnings file prepared. Check your browser's downloads.";
+    status.textContent = "Your file is ready. Check Downloads.";
   } catch (error) {
     console.error("Could not download personal earnings:", error);
     status.textContent = "Could not download your earnings. Please try again.";
@@ -2181,6 +2185,9 @@ function updatePersonalEarnings(result){
   const section = $("personalEarnings");
   const authorized = canAccessPersonalEarnings();
   section.hidden = !authorized;
+  $("personalMinimumStatus").hidden = true;
+  $("personalMinimumStatus").textContent = "";
+  $("personalMinimumStatus").className = "minimum-status";
   $("personalDownloadStatus").textContent = "";
   $("personalEarningsValues").hidden = true;
   ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet",
@@ -2191,7 +2198,7 @@ function updatePersonalEarnings(result){
   if (!authorized) return;
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
   if (!earnings) {
-    $("personalEarningsHelp").textContent = "Add Will Schreiner's time card with positive hours to see daily earnings.";
+    $("personalEarningsHelp").textContent = "Add Will Schreiner and enter your hours to see your earnings.";
     return;
   }
   $("personalEarningsHelp").textContent = `${earnings.hours} hours at ${moneyRate(personalEarningsProfile.hourlyRate)}/hour`;
@@ -2202,12 +2209,19 @@ function updatePersonalEarnings(result){
   $("personalBaseTax").textContent = moneyRate(earnings.withoutMinimum.tax);
   $("personalBaseNet").textContent = moneyRate(earnings.withoutMinimum.net);
   const hasMinimum = result.guaranteedMinimum !== null;
+  const minimumMet = result.paycheckDifference === 0;
+  $("personalMinimumStatus").hidden = !hasMinimum;
+  if (hasMinimum) {
+    $("personalMinimumStatus").classList.add(minimumMet ? "met" : "below");
+    $("personalMinimumStatus").textContent = minimumMet
+      ? "Minimum met - no extra pay needed."
+      : "Below minimum - extra pay is owed.";
+  }
   $("personalMinimumValues").hidden = !hasMinimum;
   $("personalMinimumHelp").textContent = !hasMinimum
-    ? "Enter a valid Number of Guests to include your share of the event's $4-per-guest tip minimum."
-    : result.paycheckDifference > 0
-      ? "Your hourly wages and tips, plus only your time-card share of the event's tip shortage."
-      : "The event tip minimum is met. Your earnings are the same as without the minimum.";
+    ? "Enter Number of Guests to check the minimum."
+    : `Event minimum: ${moneyRate(result.guaranteedMinimum)} ($4 per guest). ` +
+      (minimumMet ? "Your totals stay the same." : "Your totals below include your share of the extra pay.");
   $("personalGuarantee").textContent = moneyRate(earnings.paycheckShare);
   $("personalGross").textContent = moneyRate(earnings.gross);
   section.querySelectorAll(".personal-tax-label").forEach(label => {
