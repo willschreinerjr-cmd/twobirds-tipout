@@ -1208,7 +1208,7 @@ let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
 let personalEarningsProfile = null;
 let sendingReceipt = false;
-let fetchingToastStaff = false;
+let staffLoadController = null;
 let toastTimer = null;
 let statusFadeTimer = null;
 let statusClearTimer = null;
@@ -1362,10 +1362,7 @@ function initVenueSelect(){
     animateVenueSwitch(select, venue);
     setVenuePhoto(venue);
 
-    const toastStaff = await fetchToastStaff(venue);
-    if (toastStaff && toastStaff.length) {
-      populateStaffFromToast(toastStaff);
-    }
+    loadVenueStaff(venue);
   });
 }
 
@@ -1634,11 +1631,8 @@ function renderVenueGateButtons(){
       setVenueBadge(`Venue: ${detectedVenue}`);
       setVenuePhoto(detectedVenue);
 
-      const toastStaff = await fetchToastStaff(venue);
       unlockAppForManager(authenticatedManagerName);
-      if (toastStaff && toastStaff.length) {
-        populateStaffFromToast(toastStaff);
-      }
+      loadVenueStaff(venue);
     };
     wrap.appendChild(btn);
   });
@@ -1806,6 +1800,9 @@ function initManagerGate(){
     unlocking = true;
     setPinInputsDisabled(true);
     showError("Verifying PIN...", 0);
+    const slowLoginTimer = setTimeout(() => {
+      showError("Still verifying with Google. The service is responding slowly...", 0);
+    }, 3000);
     try {
       const auth = await authenticateManagerPin(pin);
       authenticatedManagerName = auth.managerName;
@@ -1826,6 +1823,8 @@ function initManagerGate(){
       setPin("");
       unlocking = false;
       setPinInputsDisabled(false);
+    } finally {
+      clearTimeout(slowLoginTimer);
     }
   };
   document.addEventListener("keydown", e => {
@@ -2609,12 +2608,36 @@ function pickVenue(){
 
 
 
-async function postToAppsScript(endpoint, payload){
+async function postToAppsScript(endpoint, payload, { timeoutMs = 0, signal } = {}){
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  let timedOut = false;
+  const timer = timeoutMs > 0 ? setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs) : null;
+  try {
+    return await performAppsScriptRequest(endpoint, payload, controller.signal);
+  } catch (err) {
+    if (timedOut) {
+      throw new Error("Google is taking too long to respond. Please try again.");
+    }
+    throw err;
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
+async function performAppsScriptRequest(endpoint, payload, signal){
   const json = JSON.stringify(payload);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(endpoint, {
       method: "POST",
+      signal,
       cache: "no-store",
       headers: { "Content-Type": "text/plain;charset=UTF-8" },
       body: json
@@ -2642,22 +2665,47 @@ async function postToAppsScript(endpoint, payload){
   throw new Error("Backend request failed. Please try again.");
 }
 
-async function fetchToastStaff(venue){
-  if (fetchingToastStaff) return null;
-  fetchingToastStaff = true;
+function cancelStaffLoad(){
+  if (staffLoadController) staffLoadController.abort();
+  staffLoadController = null;
+}
+
+async function loadVenueStaff(venue){
+  cancelStaffLoad();
+  const controller = new AbortController();
+  staffLoadController = controller;
+  const originalDraft = JSON.stringify(getDraft());
+  const managerToken = authenticatedManagerToken;
+  const isCurrent = () => staffLoadController === controller &&
+    detectedVenue === venue && authenticatedManagerToken === managerToken;
+  setStatus("Loading Toast time cards in the background. You can use the calculator now.");
   try {
     const data = await postToAppsScript(RECEIPT_ENDPOINT, {
       action: "fetchToastStaff",
       venue,
       managerName: authenticatedManagerName,
       authToken: authenticatedManagerToken
-    });
-    return Array.isArray(data.staff) ? data.staff : [];
+    }, { timeoutMs: 12000, signal: controller.signal });
+    if (!isCurrent() || sendingReceipt) return;
+    if (JSON.stringify(getDraft()) !== originalDraft || latestReceipt) {
+      setStatus("Toast time cards arrived. Your edits were kept; no rows were replaced.");
+      return;
+    }
+    if (!Array.isArray(data.staff)) {
+      throw new Error("Toast returned invalid time-card data.");
+    }
+    if (data.staff.length) {
+      populateStaffFromToast(data.staff);
+      setStatus(`Loaded ${data.staff.length} staff from Toast.`, "success");
+    } else {
+      setStatus("No Toast time cards found for this venue today. Enter staff and hours manually.");
+    }
   } catch (err) {
-    console.warn("Toast staff fetch skipped:", err.message);
-    return null;
+    if (!isCurrent() || controller.signal.aborted || sendingReceipt) return;
+    console.warn("Toast time-card loading failed:", err.message);
+    setStatus(`Could not load Toast time cards: ${err.message} Enter staff and hours manually.`, "error", { autoHideMs: 0 });
   } finally {
-    fetchingToastStaff = false;
+    if (staffLoadController === controller) staffLoadController = null;
   }
 }
 
@@ -2687,7 +2735,7 @@ async function authenticateManagerPin(pin){
   const data = await postToAppsScript(RECEIPT_ENDPOINT, {
     action: "authManagerPin",
     pin: cleanPin
-  });
+  }, { timeoutMs: 20000 });
 
   const managerName = String(data.managerName || "").trim();
   const authToken = String(data.authToken || "").trim();
@@ -2712,7 +2760,7 @@ async function validateManagerSession(name, token){
       action: "validateManagerSession",
       managerName,
       authToken
-    });
+    }, { timeoutMs: 20000 });
     personalEarningsProfile = data.valid
       ? readPersonalEarningsProfile(data.personalEarningsProfile, managerName)
       : null;
@@ -2724,6 +2772,7 @@ async function validateManagerSession(name, token){
 }
 
 function clearManagerSessionStorage(){
+  cancelStaffLoad();
   authenticatedManagerName = "";
   authenticatedManagerToken = "";
   personalEarningsProfile = null;
@@ -2817,6 +2866,7 @@ async function sendReceipt(){
 }
 
 function hardReset(){
+  cancelStaffLoad();
   $("pot").value = "$";
   $("creditPot").value = "";
   $("guestCount").value = "";

@@ -24,6 +24,18 @@ web server; there is no compilation or application build step.
 - **Calculate & Send Receipt** retains the manager, venue, name, and time-card
   requirements. It sends the current preview only when explicitly clicked.
 
+## Login and venue loading
+
+PIN verification and saved-session validation still require a successful server
+response; they time out after 20 seconds rather than waiting indefinitely. PIN
+verification displays slow-service feedback after 3 seconds. Google Apps Script
+startup and network latency can still affect authentication.
+
+Selecting a venue opens the calculator without waiting for Toast. Time cards load
+in the background with a 12-second timeout. Failed or empty imports display a
+message and allow manual entry. Late responses never replace edits or submitted
+results; changing venue, resetting, or clearing the session cancels pending imports.
+
 ## Personal daily earnings
 
 Only the existing authenticated Will Schreiner account receives a personal

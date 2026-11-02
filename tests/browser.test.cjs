@@ -311,3 +311,84 @@ test("personal earnings require Will's server profile and remain hidden for othe
   });
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
 });
+
+test("venue opens before delayed Toast response and preserves edits when it arrives", async t => {
+  const page = await openCalculator(t);
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  let requested;
+  const started = new Promise(resolve => { requested = resolve; });
+  await page.route("https://script.google.com/**", async route => {
+    requested();
+    await pending;
+    await route.fulfill({ json: { ok: true, staff: [{ name: "Imported Staff", hours: 8 }] } });
+  });
+  await page.evaluate(() => {
+    authenticatedManagerName = "Test Manager";
+    authenticatedManagerToken = "test-token";
+    document.getElementById("pinGate").style.display = "grid";
+    startPostPinVenueFlow(authenticatedManagerName);
+  });
+  const start = Date.now();
+  await page.locator("#venueGateButtons button").first().click();
+  await started;
+  await page.waitForFunction(() => !document.body.classList.contains("pin-gate-active"), { timeout: 2000 });
+  assert.ok(Date.now() - start < 2000, "venue access must not wait for Toast");
+  await page.waitForFunction(() => document.getElementById("pinGate").style.display === "none");
+  assert.match(await page.locator("#sendStatus").textContent(), /background/);
+  await page.locator("#staffBody input").first().fill("My Staff");
+  release();
+  await page.waitForFunction(() => document.getElementById("sendStatus").textContent.includes("Your edits were kept"));
+  assert.equal(await page.locator("#staffBody input").first().inputValue(), "My Staff");
+});
+
+test("venue staff imports unchanged drafts and ignores obsolete venue responses", async t => {
+  const page = await openCalculator(t);
+  await page.route("https://script.google.com/**", async route => {
+    const request = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true, staff: [{ name: `${request.venue} Staff`, hours: 4 }] } });
+  });
+  await page.evaluate(async () => {
+    authenticatedManagerName = "Test Manager";
+    authenticatedManagerToken = "test-token";
+    detectedVenue = "Ivy House";
+    await loadVenueStaff("Ivy House");
+  });
+  assert.equal(await page.locator("#staffBody input").first().inputValue(), "Ivy House Staff");
+  await page.evaluate(async () => {
+    detectedVenue = "Starling";
+    const stale = loadVenueStaff("Ivy House");
+    const current = loadVenueStaff("Starling");
+    await Promise.all([stale, current]);
+  });
+  assert.equal(await page.locator("#staffBody input").first().inputValue(), "Starling Staff");
+});
+
+test("timeouts are bounded and failed background loads leave the calculator usable", async t => {
+  const page = await openCalculator(t);
+  await page.route("https://script.google.com/**", route => route.abort("failed"));
+  await page.evaluate(async () => {
+    authenticatedManagerName = "Test Manager";
+    authenticatedManagerToken = "test-token";
+    detectedVenue = "Ivy House";
+    await loadVenueStaff("Ivy House");
+  });
+  assert.match(await page.locator("#sendStatus").textContent(), /Could not load Toast time cards/);
+  await fill(page, "pot", "100");
+  assert.equal(await page.locator("#pot").inputValue(), "$100");
+  const timeoutMessage = await page.evaluate(async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (_, options) => new Promise((resolve, reject) => {
+      options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+    });
+    try {
+      await postToAppsScript(RECEIPT_ENDPOINT, { action: "authManagerPin" }, { timeoutMs: 30 });
+      return "unexpected success";
+    } catch (error) {
+      return error.message;
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+  assert.match(timeoutMessage, /taking too long/);
+});
