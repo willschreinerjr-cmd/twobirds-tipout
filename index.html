@@ -1003,8 +1003,9 @@
             </div>
           </section>
           <p class="field-help">Per hour = your total pay + tips divided by your hours. Tax is an estimate from your paystub. Totals include cash tips already received, not just your paycheck.</p>
-          <button id="downloadPersonalEarnings" type="button">Download Earnings (CSV)</button>
-          <p class="field-help">Save today's earnings to a spreadsheet. No receipt is sent.</p>
+          <button id="downloadPersonalEarnings" type="button">Save Earnings (CSV)</button>
+          <button id="downloadPersonalEarningsFallback" type="button" hidden>Download Instead</button>
+          <p class="field-help">On iPhone, choose Save to Files in the share menu. No receipt is sent.</p>
           <p id="personalDownloadStatus" class="field-help" role="status"></p>
         </div>
       </section>
@@ -2134,9 +2135,10 @@ function canAccessPersonalEarnings(){
     Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
 }
 
-function downloadPersonalEarnings(){
+async function downloadPersonalEarnings(preferShare = true){
   const status = $("personalDownloadStatus");
   status.textContent = "";
+  $("downloadPersonalEarningsFallback").hidden = true;
   if (!canAccessPersonalEarnings()) {
     showToast("Sign in to Will Schreiner's account to download personal earnings.");
     return;
@@ -2182,9 +2184,29 @@ function downloadPersonalEarnings(){
   let url;
   const link = document.createElement("a");
   try {
-    url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    const file = new File(["\uFEFF", csv],
+      `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.csv`,
+      { type: "text/csv;charset=utf-8" });
+    if (preferShare && navigator.share && navigator.canShare?.({ files: [file] })) {
+      status.textContent = "Choose Save to Files to keep your earnings.";
+      try {
+        await navigator.share({ files: [file] });
+        if (canAccessPersonalEarnings()) status.textContent = "Share menu closed. If you chose Save to Files, your file is saved there.";
+      } catch (error) {
+        if (!canAccessPersonalEarnings()) return;
+        if (error.name === "AbortError") {
+          status.textContent = "Save canceled. Tap Save Earnings to try again.";
+        } else {
+          console.error("Could not share personal earnings:", error);
+          status.textContent = "The share menu could not open. Tap Download Instead, or try opening the calculator in Safari.";
+        }
+        $("downloadPersonalEarningsFallback").hidden = false;
+      }
+      return;
+    }
+    url = URL.createObjectURL(file);
     link.href = url;
-    link.download = `will-schreiner-earnings-${date}-${venue.toLowerCase().replace(/\s+/g, "-")}.csv`;
+    link.download = file.name;
     document.body.appendChild(link);
     link.click();
     status.textContent = "Your file is ready. Check Downloads.";
@@ -2205,6 +2227,7 @@ function updatePersonalEarnings(result){
   $("personalMinimumStatus").textContent = "";
   $("personalMinimumStatus").className = "minimum-status";
   $("personalDownloadStatus").textContent = "";
+  $("downloadPersonalEarningsFallback").hidden = true;
   $("personalEarningsValues").hidden = true;
   ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet",
     "personalBaseGross", "personalBaseTax", "personalBaseNet", "personalMinimumHelp",
@@ -2966,7 +2989,8 @@ $("pot").addEventListener("input", markUncalculated);
 });
 $("staffBody").addEventListener("input", saveDraft);
 $("staffBody").addEventListener("input", markUncalculated);
-$("downloadPersonalEarnings").addEventListener("click", downloadPersonalEarnings);
+$("downloadPersonalEarnings").addEventListener("click", () => downloadPersonalEarnings());
+$("downloadPersonalEarningsFallback").addEventListener("click", () => downloadPersonalEarnings(false));
 
 if (!restoreDraft()) {
   addStaff("Bartender", "", "", false);

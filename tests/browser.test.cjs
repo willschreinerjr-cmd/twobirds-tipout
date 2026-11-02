@@ -366,6 +366,9 @@ test("personal earnings require Will's server profile and remain hidden for othe
 
 test("Will can download current personal earnings comparisons without sending a receipt", async t => {
   const page = await openCalculator(t, 320);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: () => false });
+  });
   let requests = 0;
   await page.route("https://script.google.com/**", async route => {
     requests++;
@@ -434,17 +437,56 @@ test("Will can download current personal earnings comparisons without sending a 
   await fill(page, "guestCount", "0");
   rows = await downloadRows();
   assert.deepEqual(rows[2].slice(10, 14), ["0.00", "225.00", "46.68", "178.32"]);
+  await page.evaluate(() => {
+    globalThis.sharedEarningsFiles = [];
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: data =>
+      data.files.length === 1 && data.files[0] instanceof File && data.files[0].type === "text/csv;charset=utf-8"
+    });
+    Object.defineProperty(navigator, "share", { configurable: true, writable: true, value: async data => {
+      globalThis.sharedEarningsFiles.push({
+        name: data.files[0].name, content: await data.files[0].text(),
+        userActivated: navigator.userActivation.isActive
+      });
+    } });
+  });
+  await page.locator("#downloadPersonalEarnings").click();
+  await page.waitForFunction(() => document.getElementById("personalDownloadStatus").textContent.includes("Share menu closed"));
+  const shared = await page.evaluate(() => globalThis.sharedEarningsFiles[0]);
+  assert.match(shared.name, /^will-schreiner-earnings-.*-ivy-house\.csv$/);
+  assert.match(shared.content, /"225.00","46.68","178.32"/);
+  assert.equal(shared.userActivated, true);
+  assert.equal(downloads.length, 3, "sharing must not also download");
+  await page.evaluate(() => {
+    navigator.share = async () => { throw new DOMException("Canceled", "AbortError"); };
+  });
+  await page.locator("#downloadPersonalEarnings").click();
+  await text(page, "personalDownloadStatus", "Save canceled. Tap Save Earnings to try again.");
+  assert.equal(await page.locator("#downloadPersonalEarningsFallback").isVisible(), true);
+  await page.evaluate(() => {
+    navigator.share = async () => { throw new DOMException("Not allowed", "NotAllowedError"); };
+  });
+  await page.locator("#downloadPersonalEarnings").click();
+  assert.match(await page.locator("#personalDownloadStatus").textContent(), /Tap Download Instead/);
+  const fallbackDownload = page.waitForEvent("download");
+  await page.locator("#downloadPersonalEarningsFallback").click();
+  await (await fallbackDownload).delete();
+  assert.equal(downloads.length, 4);
+  assert.equal(await page.locator("#downloadPersonalEarningsFallback").isVisible(), false);
+  await page.evaluate(() => {
+    delete navigator.share;
+    delete navigator.canShare;
+  });
   await fill(page, "guestCount", "-1");
   await page.locator("#downloadPersonalEarnings").click();
   assert.match(await page.locator("#personalDownloadStatus").textContent(), /fix any guest-count error/);
-  assert.equal(downloads.length, 3);
+  assert.equal(downloads.length, 4);
   await fill(page, "guestCount", "");
   const bounds = await page.locator("#downloadPersonalEarnings").boundingBox();
   assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 320);
   await page.locator("#staffBody input").first().fill("Another Person");
   assert.equal(await page.locator("#downloadPersonalEarnings").isVisible(), false);
   await page.evaluate(() => downloadPersonalEarnings());
-  assert.equal(downloads.length, 3);
+  assert.equal(downloads.length, 4);
   await page.evaluate(() => clearManagerSessionStorage());
   assert.equal(await page.locator("#downloadPersonalEarnings").isVisible(), false);
   await page.evaluate(() => {
@@ -453,7 +495,7 @@ test("Will can download current personal earnings comparisons without sending a 
     updateResults();
     downloadPersonalEarnings();
   });
-  assert.equal(downloads.length, 3);
+  assert.equal(downloads.length, 4);
   assert.equal(requests, 1, "downloads must not call the backend or send receipts");
 });
 
