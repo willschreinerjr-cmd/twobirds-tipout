@@ -289,6 +289,8 @@ test("personal earnings require Will's server profile and remain hidden for othe
   await text(page, "personalBaseGross", "$225.00");
   await text(page, "personalBaseTax", "$46.68");
   await text(page, "personalBaseNet", "$178.32");
+  await text(page, "personalBaseHourly", "$45.00/hr");
+  await text(page, "personalBaseHourlyNet", "$35.66/hr");
   assert.equal(await page.locator("#personalMinimumValues").isVisible(), false);
   assert.equal(await page.locator("#personalMinimumStatus").isVisible(), false);
   assert.match(await page.locator("#personalMinimumHelp").textContent(), /Number of Guests/);
@@ -301,12 +303,16 @@ test("personal earnings require Will's server profile and remain hidden for othe
   assert.equal(await page.locator("#personalMinimumStatus").getAttribute("class"), "minimum-status below");
   assert.equal(await page.locator("#personalMinimumStatus").evaluate(el => getComputedStyle(el).backgroundColor), "rgb(254, 242, 242)");
   await text(page, "personalGross", "$475.00");
+  await text(page, "personalHourly", "$95.00/hr");
+  await text(page, "personalHourlyNet", "$75.29/hr");
   assert.equal(await page.locator("#personalMinimumValues").isVisible(), true);
   await text(page, "personalBaseGross", "$225.00");
   await page.locator(".hours-input").fill("4");
   await text(page, "personalWages", "$60.00");
   await text(page, "personalGross", "$460.00");
   await text(page, "personalBaseGross", "$210.00");
+  await text(page, "personalBaseHourly", "$52.50/hr");
+  await text(page, "personalHourly", "$115.00/hr");
   await fill(page, "guestCount", "10");
   await text(page, "personalGross", "$210.00");
   await text(page, "personalBaseGross", "$210.00");
@@ -339,6 +345,7 @@ test("personal earnings require Will's server profile and remain hidden for othe
   await page.evaluate(() => clearManagerSessionStorage());
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
   await text(page, "personalNet", "");
+  await text(page, "personalHourly", "");
   await page.evaluate(async () => {
     authenticatedManagerName = "Another Manager";
     authenticatedManagerToken = "another-session";
@@ -384,7 +391,7 @@ test("Will can download current personal earnings comparisons without sending a 
     const csv = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
     const rows = csv.trimEnd().split("\r\n").map(line => line.slice(1, -1).split('","'));
     assert.equal(rows.length, 3);
-    rows.forEach(row => assert.equal(row.length, 16));
+    rows.forEach(row => assert.equal(row.length, 18));
     const date = await page.evaluate(() => todayLocalISO());
     assert.equal(download.suggestedFilename(), `will-schreiner-earnings-${date}-ivy-house.csv`);
     assert.deepEqual(rows[1].slice(0, 7), [date, "Ivy House", "Will Schreiner", "5", "15.00", "75.00", "150.00"]);
@@ -395,10 +402,26 @@ test("Will can download current personal earnings comparisons without sending a 
   let rows = await downloadRows();
   assert.deepEqual(rows[1].slice(9, 15), ["Without Tip Minimum", "0.00", "225.00", "46.68", "178.32", "20.75%"]);
   assert.deepEqual(rows[2].slice(10, 14), ["", "", "", ""]);
+  assert.deepEqual(rows[1].slice(16), ["45.00", "35.66"]);
+  assert.deepEqual(rows[2].slice(16), ["", ""]);
   assert.match(rows[2][15], /Not calculated/);
   await fill(page, "guestCount", "100");
   rows = await downloadRows();
   assert.deepEqual(rows[2].slice(7, 14), ["100", "400.00", "With Tip Minimum", "250.00", "475.00", "98.55", "376.45"]);
+  assert.deepEqual(rows[2].slice(16), ["95.00", "75.29"]);
+  const hierarchy = await page.evaluate(() => ({
+    hourly: parseFloat(getComputedStyle(document.getElementById("personalHourly")).fontSize),
+    total: parseFloat(getComputedStyle(document.getElementById("personalGross")).fontSize)
+  }));
+  assert.ok(hierarchy.total > hierarchy.hourly && hierarchy.hourly >= 24);
+  for (const width of [320, 390, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const id of ["personalBaseHourly", "personalHourly", "personalGross", "personalNet"]) {
+      const bounds = await page.locator(`#${id}`).boundingBox();
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, `${id} fits at ${width}`);
+    }
+  }
+  await page.setViewportSize({ width: 320, height: 900 });
   await fill(page, "guestCount", "0");
   rows = await downloadRows();
   assert.deepEqual(rows[2].slice(10, 14), ["0.00", "225.00", "46.68", "178.32"]);

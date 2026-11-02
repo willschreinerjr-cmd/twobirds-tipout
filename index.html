@@ -605,6 +605,10 @@
     .minimum-status{ border:1px solid; border-radius:10px; padding:10px 12px; margin:0 0 10px; font-size:14px; font-weight:700; }
     .minimum-status.met{ color:#166534; background:#f0fdf4; border-color:#86efac; }
     .minimum-status.below{ color:#991b1b; background:#fef2f2; border-color:#fca5a5; }
+    .earnings-highlight{ background:#f3f4f6; border-radius:10px; padding:12px; margin:10px 0; }
+    .earnings-highlight span{ display:block; font-size:13px; font-weight:600; }
+    .earnings-highlight strong{ display:block; font-size:24px; font-weight:800; margin-top:4px; overflow-wrap:anywhere; }
+    .earnings-highlight.daily-total strong{ font-size:30px; font-weight:900; }
     .results-card thead th:nth-child(2),
     .results-card tbody td:nth-child(2){ text-align:center; }
 
@@ -979,9 +983,11 @@
           <section class="guarantee-section" aria-labelledby="withoutMinimumTitle">
             <h2 id="withoutMinimumTitle">Without Tip Minimum</h2>
             <p class="field-help">Your hourly pay + your tips.</p>
-            <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalBaseGross"></strong></div>
+            <div class="earnings-highlight"><span>Earned Per Hour - Before Tax</span><strong id="personalBaseHourly"></strong></div>
+            <div class="earnings-highlight"><span>Earned Per Hour - After Estimated Tax</span><strong id="personalBaseHourlyNet"></strong></div>
+            <div class="earnings-highlight daily-total"><span>Total Before Tax</span><strong id="personalBaseGross"></strong></div>
             <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalBaseTax"></span></div>
-            <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalBaseNet"></strong></div>
+            <div class="earnings-highlight daily-total"><span>Total After Estimated Tax</span><strong id="personalBaseNet"></strong></div>
           </section>
           <section class="guarantee-section" aria-labelledby="withMinimumTitle">
             <h2 id="withMinimumTitle">With Tip Minimum</h2>
@@ -989,12 +995,14 @@
             <p id="personalMinimumHelp" class="field-help"></p>
             <div id="personalMinimumValues" hidden>
               <div class="guarantee-line"><span>Extra Pay Owed to You:</span><span id="personalGuarantee"></span></div>
-              <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalGross"></strong></div>
+              <div class="earnings-highlight"><span>Earned Per Hour - Before Tax</span><strong id="personalHourly"></strong></div>
+              <div class="earnings-highlight"><span>Earned Per Hour - After Estimated Tax</span><strong id="personalHourlyNet"></strong></div>
+              <div class="earnings-highlight daily-total"><span>Total Before Tax</span><strong id="personalGross"></strong></div>
               <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalTax"></span></div>
-              <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalNet"></strong></div>
+              <div class="earnings-highlight daily-total"><span>Total After Estimated Tax</span><strong id="personalNet"></strong></div>
             </div>
           </section>
-          <p class="field-help">Tax is an estimate based on your paystub. Totals include cash tips you already received, so they are not your paycheck deposit.</p>
+          <p class="field-help">Per hour = your total pay + tips divided by your hours. Tax is an estimate from your paystub. Totals include cash tips already received, not just your paycheck.</p>
           <button id="downloadPersonalEarnings" type="button">Download Earnings (CSV)</button>
           <p class="field-help">Save today's earnings to a spreadsheet. No receipt is sent.</p>
           <p id="personalDownloadStatus" class="field-help" role="status"></p>
@@ -1062,7 +1070,12 @@ function calculatePersonalEarnings(result, profile){
   const withoutMinimum = { gross: baseGross, tax: baseTax, net: Math.round((baseGross - baseTax) * 100) / 100 };
   const gross = Math.round((wages + tips + paycheckShare) * 100) / 100;
   const tax = Math.round(gross * profile.withholdingRate * 100) / 100;
-  return { hours, wages, tips, paycheckShare, withoutMinimum, gross, tax, net: Math.round((gross - tax) * 100) / 100 };
+  const net = Math.round((gross - tax) * 100) / 100;
+  withoutMinimum.hourlyGross = Math.round(baseGross / hours * 100) / 100;
+  withoutMinimum.hourlyNet = Math.round(withoutMinimum.net / hours * 100) / 100;
+  return { hours, wages, tips, paycheckShare, withoutMinimum, gross, tax, net,
+    hourlyGross: Math.round(gross / hours * 100) / 100,
+    hourlyNet: Math.round(net / hours * 100) / 100 };
 }
 
 function calculateEventTips(cashPot, creditPot, people, guestCount){
@@ -2149,16 +2162,19 @@ function downloadPersonalEarnings(){
     ["Date", "Venue", "Name", "Hours", "Hourly Rate (USD)", "Hourly Wages (USD)",
       "Cash and Credit Tips After Tip-Out (USD)", "Event Guests", "Event Tip Minimum (USD)",
       "Comparison", "Your Additional Paycheck Share (USD)", "Total Before Tax (USD)",
-      "Estimated Tax (USD)", "Estimated After Tax (USD)", "Estimated Withholding Rate", "Notes"],
+      "Estimated Tax (USD)", "Estimated After Tax (USD)", "Estimated Withholding Rate", "Notes",
+      "Earned Per Hour Before Tax (USD)", "Earned Per Hour After Estimated Tax (USD)"],
     [...shared, "Without Tip Minimum", "0.00", earnings.withoutMinimum.gross.toFixed(2),
       earnings.withoutMinimum.tax.toFixed(2), earnings.withoutMinimum.net.toFixed(2),
-      `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`, note],
+      `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`, note,
+      earnings.withoutMinimum.hourlyGross.toFixed(2), earnings.withoutMinimum.hourlyNet.toFixed(2)],
     [...shared, "With Tip Minimum", ...(
       hasMinimum
         ? [earnings.paycheckShare, earnings.gross, earnings.tax, earnings.net].map(value => value.toFixed(2))
         : ["", "", "", ""]
     ), `${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%`,
-      hasMinimum ? note : `Not calculated: no guest count entered. ${note}`]
+      hasMinimum ? note : `Not calculated: no guest count entered. ${note}`,
+      hasMinimum ? earnings.hourlyGross.toFixed(2) : "", hasMinimum ? earnings.hourlyNet.toFixed(2) : ""]
   ];
   const csv = rows.map(row => row.map(value =>
     `"${String(value).replace(/"/g, '""')}"`
@@ -2191,7 +2207,8 @@ function updatePersonalEarnings(result){
   $("personalDownloadStatus").textContent = "";
   $("personalEarningsValues").hidden = true;
   ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet",
-    "personalBaseGross", "personalBaseTax", "personalBaseNet", "personalMinimumHelp"].forEach(id => {
+    "personalBaseGross", "personalBaseTax", "personalBaseNet", "personalMinimumHelp",
+    "personalBaseHourly", "personalBaseHourlyNet", "personalHourly", "personalHourlyNet"].forEach(id => {
     $(id).textContent = "";
   });
   $("personalEarningsHelp").textContent = "";
@@ -2208,6 +2225,10 @@ function updatePersonalEarnings(result){
   $("personalBaseGross").textContent = moneyRate(earnings.withoutMinimum.gross);
   $("personalBaseTax").textContent = moneyRate(earnings.withoutMinimum.tax);
   $("personalBaseNet").textContent = moneyRate(earnings.withoutMinimum.net);
+  $("personalBaseHourly").textContent = `${moneyRate(earnings.withoutMinimum.hourlyGross)}/hr`;
+  $("personalBaseHourlyNet").textContent = `${moneyRate(earnings.withoutMinimum.hourlyNet)}/hr`;
+  $("personalHourly").textContent = `${moneyRate(earnings.hourlyGross)}/hr`;
+  $("personalHourlyNet").textContent = `${moneyRate(earnings.hourlyNet)}/hr`;
   const hasMinimum = result.guaranteedMinimum !== null;
   const minimumMet = result.paycheckDifference === 0;
   $("personalMinimumStatus").hidden = !hasMinimum;

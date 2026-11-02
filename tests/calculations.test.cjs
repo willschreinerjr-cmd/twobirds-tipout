@@ -102,12 +102,23 @@ test("personal earnings use only Will's time cards and tax wages plus tips once"
   assert.equal(earnings.gross, 275);
   assert.equal(earnings.tax, 57.06);
   assert.equal(earnings.net, 217.94);
+  assert.equal(earnings.withoutMinimum.hourlyGross, 35);
+  assert.equal(earnings.withoutMinimum.hourlyNet, 27.74);
+  assert.equal(earnings.hourlyGross, 55);
+  assert.equal(earnings.hourlyNet, 43.59);
   assert.equal(calculatePersonalEarnings(calculateEventTips(0, 0, solo, null), profile), null);
   const wagesOnly = calculatePersonalEarnings(calculateEventTips(0, 0, people, null), profile);
   assert.equal(wagesOnly.gross, 75);
   assert.equal(wagesOnly.paycheckShare, 0);
+  assert.equal(wagesOnly.hourlyGross, 15);
   assert.equal(wagesOnly.withoutMinimum.gross, wagesOnly.gross);
   const metMinimum = calculatePersonalEarnings(calculateEventTips(1000, 0, people, 10), profile);
   assert.equal(metMinimum.withoutMinimum.gross, metMinimum.gross);
   assert.equal(metMinimum.withoutMinimum.net, metMinimum.net);
+  assert.equal(metMinimum.withoutMinimum.hourlyGross, metMinimum.hourlyGross);
+  const partialHours = calculatePersonalEarnings(calculateEventTips(100, 0, [
+    { role: "Bartender", name: "Will Schreiner", hours: 2.5 }
+  ], null), profile);
+  assert.equal(partialHours.hourlyGross, 55);
+  assert.equal(partialHours.hourlyNet, 43.59);
 });

@@ -53,6 +53,11 @@ plus his cash payouts and credit payouts. Two separate bottom sections compare:
 
 Each section shows before-tax earnings, estimated tax, and estimated after-tax
 earnings. The shared summary shows Will's hours, hourly wages, and total tips.
+Both comparisons highlight effective hourly earnings (total earnings divided by
+Will's hours), before and after estimated tax. Daily totals before and after
+estimated tax are the largest figures in the personal section. Hourly figures
+are also included in the CSV download; no guest count leaves the with-minimum
+figures blank. These are earnings including tips, not a change to the $15 wage.
 Estimated after-tax earnings use a 20.75% effective withholding rate derived
 from one supplied paystub. The unrounded rate is used internally; tax and net
 amounts round to cents. This includes cash already received and is not a paycheck
