@@ -41,7 +41,15 @@ results; changing venue, resetting, or clearing the session cancels pending impo
 Only the existing authenticated Will Schreiner account receives a personal
 earnings profile from the backend. No additional password is embedded in the
 page. Its private-in-the-UI section uses Will's own named time card(s) at $15/hour
-plus his cash payouts, credit payouts, and allocated guarantee paycheck shares.
+plus his cash payouts and credit payouts. Two separate bottom sections compare:
+
+- **Without Tip Minimum:** hourly wages plus Will's actual tips after tip-out.
+- **With Tip Minimum:** those same earnings plus only Will's allocated guarantee
+  paycheck share, using the existing time-card distribution. A valid guest count
+  is required; when the event minimum is met, both totals are identical.
+
+Each section shows before-tax earnings, estimated tax, and estimated after-tax
+earnings. The shared summary shows Will's hours, hourly wages, and total tips.
 Estimated after-tax earnings use a 20.75% effective withholding rate derived
 from one supplied paystub. The unrounded rate is used internally; tax and net
 amounts round to cents. This includes cash already received and is not a paycheck

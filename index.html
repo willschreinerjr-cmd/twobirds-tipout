@@ -968,15 +968,28 @@
         </div>
       </section>
       <section id="personalEarnings" class="guarantee-section" aria-labelledby="personalEarningsTitle" aria-live="polite" hidden>
-        <h2 id="personalEarningsTitle">Your Daily Earnings</h2>
+        <h2 id="personalEarningsTitle">Will Schreiner's Daily Earnings</h2>
         <p id="personalEarningsHelp" class="field-help"></p>
         <div id="personalEarningsValues" hidden>
           <div class="guarantee-line"><span>Hourly Wages:</span><span id="personalWages"></span></div>
           <div class="guarantee-line"><span>Your Cash &amp; Credit Tips:</span><span id="personalTips"></span></div>
-          <div class="guarantee-line"><span>Your Additional Paycheck Share:</span><span id="personalGuarantee"></span></div>
-          <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalGross"></strong></div>
-          <div class="guarantee-line"><span id="personalTaxLabel">Estimated Tax:</span><span id="personalTax"></span></div>
-          <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalNet"></strong></div>
+          <section class="guarantee-section" aria-labelledby="withoutMinimumTitle">
+            <h2 id="withoutMinimumTitle">Without Tip Minimum</h2>
+            <p class="field-help">Your hourly wages plus your cash and credit tips after tip-out.</p>
+            <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalBaseGross"></strong></div>
+            <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalBaseTax"></span></div>
+            <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalBaseNet"></strong></div>
+          </section>
+          <section class="guarantee-section" aria-labelledby="withMinimumTitle">
+            <h2 id="withMinimumTitle">With Tip Minimum</h2>
+            <p id="personalMinimumHelp" class="field-help"></p>
+            <div id="personalMinimumValues" hidden>
+              <div class="guarantee-line"><span>Your Additional Paycheck Share:</span><span id="personalGuarantee"></span></div>
+              <div class="guarantee-line"><strong>Total Before Tax:</strong><strong id="personalGross"></strong></div>
+              <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalTax"></span></div>
+              <div class="guarantee-line"><strong>Estimated After Tax:</strong><strong id="personalNet"></strong></div>
+            </div>
+          </section>
           <p class="field-help">Estimate for this event's time card, including tips already received as cash. Uses your paystub's effective withholding rate, not an exact payroll tax calculation. Actual withholding varies by pay period; this is not your paycheck deposit.</p>
         </div>
       </section>
@@ -1037,9 +1050,12 @@ function calculatePersonalEarnings(result, profile){
   const tips = indexes.reduce((sum, index) =>
     sum + result.cash.entries[index].tipout + result.credit.entries[index].tipout, 0);
   const paycheckShare = indexes.reduce((sum, index) => sum + result.paycheck.entries[index].tipout, 0);
+  const baseGross = Math.round((wages + tips) * 100) / 100;
+  const baseTax = Math.round(baseGross * profile.withholdingRate * 100) / 100;
+  const withoutMinimum = { gross: baseGross, tax: baseTax, net: Math.round((baseGross - baseTax) * 100) / 100 };
   const gross = Math.round((wages + tips + paycheckShare) * 100) / 100;
   const tax = Math.round(gross * profile.withholdingRate * 100) / 100;
-  return { hours, wages, tips, paycheckShare, gross, tax, net: Math.round((gross - tax) * 100) / 100 };
+  return { hours, wages, tips, paycheckShare, withoutMinimum, gross, tax, net: Math.round((gross - tax) * 100) / 100 };
 }
 
 function calculateEventTips(cashPot, creditPot, people, guestCount){
@@ -2102,7 +2118,8 @@ function updatePersonalEarnings(result){
     Boolean(authenticatedManagerToken) && Boolean(personalEarningsProfile);
   section.hidden = !authorized;
   $("personalEarningsValues").hidden = true;
-  ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet"].forEach(id => {
+  ["personalWages", "personalTips", "personalGuarantee", "personalGross", "personalTax", "personalNet",
+    "personalBaseGross", "personalBaseTax", "personalBaseNet", "personalMinimumHelp"].forEach(id => {
     $(id).textContent = "";
   });
   $("personalEarningsHelp").textContent = "";
@@ -2116,9 +2133,21 @@ function updatePersonalEarnings(result){
   $("personalEarningsValues").hidden = false;
   $("personalWages").textContent = moneyRate(earnings.wages);
   $("personalTips").textContent = moneyRate(earnings.tips);
+  $("personalBaseGross").textContent = moneyRate(earnings.withoutMinimum.gross);
+  $("personalBaseTax").textContent = moneyRate(earnings.withoutMinimum.tax);
+  $("personalBaseNet").textContent = moneyRate(earnings.withoutMinimum.net);
+  const hasMinimum = result.guaranteedMinimum !== null;
+  $("personalMinimumValues").hidden = !hasMinimum;
+  $("personalMinimumHelp").textContent = !hasMinimum
+    ? "Enter a valid Number of Guests to include your share of the event's $4-per-guest tip minimum."
+    : result.paycheckDifference > 0
+      ? "Your hourly wages and tips, plus only your time-card share of the event's tip shortage."
+      : "The event tip minimum is met. Your earnings are the same as without the minimum.";
   $("personalGuarantee").textContent = moneyRate(earnings.paycheckShare);
   $("personalGross").textContent = moneyRate(earnings.gross);
-  $("personalTaxLabel").textContent = `Estimated Tax (${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%):`;
+  section.querySelectorAll(".personal-tax-label").forEach(label => {
+    label.textContent = `Estimated Tax (${(personalEarningsProfile.withholdingRate * 100).toFixed(2)}%):`;
+  });
   $("personalTax").textContent = moneyRate(earnings.tax);
   $("personalNet").textContent = moneyRate(earnings.net);
 }

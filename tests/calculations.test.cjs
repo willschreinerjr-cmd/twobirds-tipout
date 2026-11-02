@@ -96,6 +96,9 @@ test("personal earnings use only Will's time cards and tax wages plus tips once"
   assert.equal(earnings.wages, 75);
   assert.equal(earnings.tips, 100);
   assert.equal(earnings.paycheckShare, 100);
+  assert.equal(earnings.withoutMinimum.gross, 175);
+  assert.equal(earnings.withoutMinimum.tax, 36.31);
+  assert.equal(earnings.withoutMinimum.net, 138.69);
   assert.equal(earnings.gross, 275);
   assert.equal(earnings.tax, 57.06);
   assert.equal(earnings.net, 217.94);
@@ -103,4 +106,8 @@ test("personal earnings use only Will's time cards and tax wages plus tips once"
   const wagesOnly = calculatePersonalEarnings(calculateEventTips(0, 0, people, null), profile);
   assert.equal(wagesOnly.gross, 75);
   assert.equal(wagesOnly.paycheckShare, 0);
+  assert.equal(wagesOnly.withoutMinimum.gross, wagesOnly.gross);
+  const metMinimum = calculatePersonalEarnings(calculateEventTips(1000, 0, people, 10), profile);
+  assert.equal(metMinimum.withoutMinimum.gross, metMinimum.gross);
+  assert.equal(metMinimum.withoutMinimum.net, metMinimum.net);
 });
