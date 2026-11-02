@@ -17,7 +17,7 @@ test("both production scripts compile without a build step", () => {
   new vm.Script(fs.readFileSync(path.join(root, "google-apps-script.gs"), "utf8"));
 });
 
-test("cash-only matches the original algorithm including rounding for varied time cards", () => {
+test("cash preserves original role and hourly rates but rounds each payout up", () => {
   for (const pot of [0, 1, 23, 100, 301, 1000]) {
     for (const people of [staff, solo, staff.slice(0, 2), staff.map(p => ({ ...p, hours: p.hours + 0.25 }))]) {
       const training = people.filter(p => p.role === "Training");
@@ -31,7 +31,7 @@ test("cash-only matches the original algorithm including rounding for varied tim
       people.forEach((p, index) => {
         const rate = p.role === "Training" ? trainingRate : baseRate;
         assert.equal(actual.cash.entries[index].rate, rate);
-        assert.equal(actual.cash.entries[index].tipout, Math.floor(p.hours * rate));
+        assert.equal(actual.cash.entries[index].tipout, Math.ceil(Number((p.hours * rate).toFixed(10))));
       });
       assert.equal(actual.totalEarned, actual.cash.totalEarned);
       assert.equal(actual.guaranteedMinimum, null);
@@ -39,15 +39,44 @@ test("cash-only matches the original algorithm including rounding for varied tim
   }
 });
 
-test("cash and credit are allocated independently with identical rules, never twice", () => {
+test("credit and paycheck shares preserve weights and allocate every cent", () => {
   const result = calculateEventTips(301, 301, staff, 200);
-  assert.deepEqual(result.cash, result.credit);
-  assert.equal(result.totalEarned, 2 * result.cash.totalEarned);
+  assert.equal(result.credit.totalEarned, 301);
+  assert.equal(result.totalEarned, result.cash.totalEarned + 301);
   assert.equal(result.cash.trainingPool, 30.1);
-  assert.deepEqual(result.paycheck, calculateTipPool(result.paycheckDifference, staff));
+  assert.deepEqual(result.paycheck, calculateTipPool(result.paycheckDifference, staff, "cents"));
   const creditOnly = calculateEventTips(0, 301, staff, null);
   assert.equal(creditOnly.cash.totalEarned, 0);
-  assert.deepEqual(creditOnly.credit, result.cash);
+  assert.deepEqual(creditOnly.credit, result.credit);
+  for (const pot of [0.01, 0.02, 0.1, 100, 252.43, 301.99]) {
+    for (const people of [staff, solo, staff.slice(0, 2), staff.map(p => ({ ...p, hours: p.hours + 0.13 }))]) {
+      const pool = calculateTipPool(pot, people, "cents");
+      assert.equal(pool.entries.reduce((sum, entry) => sum + Math.round(entry.tipout * 100), 0), Math.round(pot * 100));
+      for (const entry of pool.entries) {
+        assert.ok(Math.abs(entry.tipout - entry.hours * entry.rate) < 0.01000001);
+      }
+    }
+  }
+});
+
+test("cash overages are explicit and guarantees use actual cents paid", () => {
+  const people = [{ role: "Bartender", name: "One", hours: 1 }, { role: "Bartender", name: "Two", hours: 2 }];
+  const result = calculateEventTips(100, 19.99, people, 30);
+  assert.equal(result.cash.totalEarned, 101);
+  assert.equal(result.cashRoundingDifference, 1);
+  assert.equal(result.totalEarned, 120.99);
+  assert.equal(result.paycheckDifference, 0);
+  const short = calculateEventTips(0, 119.99, people, 30);
+  assert.equal(short.paycheckDifference, 0.01);
+  assert.equal(short.paycheck.totalEarned, 0.01);
+  const exact = calculateEventTips(0, 120, people, 30);
+  assert.equal(exact.paycheckDifference, 0);
+  assert.equal(calculateTipPool(115.2, solo).entries[0].tipout, 116);
+  assert.equal(calculateTipPool(115, solo).entries[0].tipout, 115);
+  const unallocated = calculateEventTips(100, 25.43, [], 10);
+  assert.equal(unallocated.creditUnallocated, 25.43);
+  assert.equal(unallocated.cashRoundingDifference, -100);
+  assert.equal(calculateTipPool(10, [{ role: "Training", name: "Trainee", hours: 2 }], "cents").totalEarned, 0);
 });
 
 test("guests only, shortages, exceeded minimum, zero guests, and absent guests", () => {

@@ -84,13 +84,13 @@ test("live cash, credit, guests, exceeded minimum, and optional-field clearing",
   const page = await openCalculator(t);
   await soloTimeCard(page);
   await fill(page, "pot", "150");
-  await text(page, "cashTotal", "$150.00");
+  await text(page, "cashTotal", "$150");
   assert.equal(await page.locator("#combinedResult").isVisible(), false);
   assert.equal(await page.locator("#guaranteeSection").isVisible(), false);
   assert.equal(await page.locator("#resultsBody b").textContent(), "$150");
   await fill(page, "creditPot", "75");
   await text(page, "combinedTotal", "$225.00");
-  await text(page, "cashTotal", "$150.00");
+  await text(page, "cashTotal", "$150");
   await fill(page, "guestCount", "100");
   await text(page, "guaranteedMinimum", "$400.00");
   await text(page, "totalTipsEarned", "$225.00");
@@ -100,7 +100,7 @@ test("live cash, credit, guests, exceeded minimum, and optional-field clearing",
   await text(page, "paycheckAmount", "$0.00");
   assert.equal(await page.locator("#guaranteeMet").isVisible(), true);
   await fill(page, "pot", "");
-  await text(page, "cashTotal", "$0.00");
+  await text(page, "cashTotal", "$0");
   await text(page, "totalTipsEarned", "$75.00");
   await text(page, "paycheckAmount", "$325.00");
   await fill(page, "creditPot", "");
@@ -144,10 +144,11 @@ test("time-card hours, roles, additions and removals update every dependent payo
   assert.equal(await page.locator("#resultsBody b").nth(1).textContent(), "$10");
   await text(page, "paycheckAmount", "$200.00");
   await page.locator(".staff-role").nth(1).selectOption("Bartender");
-  assert.equal(await page.locator("#resultsBody b").nth(0).textContent(), "$33");
-  assert.equal(await page.locator("#resultsBody b").nth(1).textContent(), "$66");
-  await text(page, "totalTipsEarned", "$198.00");
-  await text(page, "paycheckAmount", "$202.00");
+  assert.equal(await page.locator("#resultsBody b").nth(0).textContent(), "$34");
+  assert.equal(await page.locator("#resultsBody b").nth(1).textContent(), "$67");
+  await text(page, "totalTipsEarned", "$201.00");
+  await text(page, "paycheckAmount", "$199.00");
+  await text(page, "cashRounding", "Cash rounding: $1 extra cash needed above the original pot.");
   await page.locator(".hours-input").nth(1).fill("1");
   assert.equal(await page.locator("#resultsBody b").nth(0).textContent(), "$50");
   await text(page, "totalTipsEarned", "$200.00");
@@ -167,14 +168,14 @@ test("new fields persist after reload and legacy drafts remain compatible", asyn
   await fill(page, "creditPot", "10");
   await fill(page, "guestCount", "10");
   await page.reload();
-  assert.equal(await page.locator("#creditPot").inputValue(), "$10");
+  assert.equal(await page.locator("#creditPot").inputValue(), "$10.00");
   assert.equal(await page.locator("#guestCount").inputValue(), "10");
   await text(page, "paycheckAmount", "$10.00");
   await page.evaluate(() => localStorage.setItem("twobirds-tipout-draft-v1", JSON.stringify({
     pot: "$150", notes: "Legacy draft", staff: [{ role: "Shift Manager", name: "Test Manager", hours: "1" }]
   })));
   await page.reload();
-  await text(page, "cashTotal", "$150.00");
+  await text(page, "cashTotal", "$150");
   assert.equal(await page.locator("#combinedResult").isVisible(), false);
   assert.equal(await page.locator("#guaranteeSection").isVisible(), false);
 });
@@ -182,7 +183,7 @@ test("new fields persist after reload and legacy drafts remain compatible", asyn
 test("send includes optional results, prevents unauthenticated sends, and never auto-sends edits", async t => {
   const page = await openCalculator(t);
   await soloTimeCard(page);
-  await fill(page, "creditPot", "10");
+  await fill(page, "creditPot", "10.43");
   await fill(page, "guestCount", "10");
   const sent = [];
   await page.route("https://script.google.com/**", async route => {
@@ -202,15 +203,47 @@ test("send includes optional results, prevents unauthenticated sends, and never 
   await page.waitForFunction(() => document.getElementById("sendStatus").textContent === "Receipt sent!");
   assert.equal(sent.length, 1);
   assert.equal(sent[0].totalPot, 0);
-  assert.equal(sent[0].creditPot, 10);
-  assert.equal(sent[0].totalTipsEarned, 10);
-  assert.equal(sent[0].paycheckDifference, 30);
-  assert.equal(sent[0].entries[0].creditTipout, 10);
-  assert.equal(sent[0].paycheckEntries[0].tipout, 30);
+  assert.equal(sent[0].creditPot, 10.43);
+  assert.equal(sent[0].totalTipsEarned, 10.43);
+  assert.equal(sent[0].paycheckDifference, 29.57);
+  assert.equal(sent[0].entries[0].creditTipout, 10.43);
+  assert.equal(sent[0].paycheckEntries[0].tipout, 29.57);
   await fill(page, "creditPot", "20");
   await text(page, "paycheckAmount", "$20.00");
   assert.equal(sent.length, 1);
   assert.equal(await page.evaluate(() => latestReceipt), null);
+});
+
+test("decimal credit tips persist, reconcile uneven shares and reject invalid cents", async t => {
+  const page = await openCalculator(t, 390);
+  await soloTimeCard(page);
+  await page.evaluate(() => addStaff("Bartender", "Second Person", "2", false));
+  await fill(page, "pot", "100");
+  await fill(page, "creditPot", "252.43");
+  await fill(page, "guestCount", "100");
+  await text(page, "cashTotal", "$101");
+  await text(page, "combinedTotal", "$353.43");
+  await text(page, "paycheckAmount", "$46.57");
+  const result = await page.evaluate(() => JSON.parse(JSON.stringify(getCurrentCalculation())));
+  assert.deepEqual(result.credit.entries.map(entry => entry.tipout), [84.14, 168.29]);
+  assert.equal(result.paycheck.entries.reduce((sum, entry) => sum + Math.round(entry.tipout * 100), 0), 4657);
+  assert.match(await page.locator("#resultsBody").textContent(), /Credit Tips: \$84.14/);
+  await page.reload();
+  assert.equal(await page.locator("#creditPot").inputValue(), "$252.43");
+  await text(page, "combinedTotal", "$353.43");
+  await page.evaluate(() => {
+    document.getElementById("pinGate").style.display = "none";
+    document.body.classList.remove("pin-gate-active");
+    document.body.style.overflow = "";
+  });
+  await fill(page, "creditPot", "1.234");
+  assert.equal(await page.locator("#creditError").isVisible(), true);
+  await page.locator("#calc").click();
+  assert.match(await page.locator("#sendStatus").textContent(), /two decimal places/);
+  await fill(page, "creditPot", "100");
+  await page.locator("#creditPot").blur();
+  assert.equal(await page.locator("#creditPot").inputValue(), "$100.00");
+  assert.equal(await page.locator("#creditError").isVisible(), false);
 });
 
 test("mobile results stay readable, cash is primary, and summaries do not overflow", async t => {

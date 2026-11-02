@@ -35,6 +35,21 @@ test("zero guests and a met guarantee persist without paycheck shares", () => {
   assert.ok(!rows.some(row => row[0] === "Paycheck Shares"));
 });
 
+test("receipt preserves cash overage, exact credit cents, combined tips and paycheck cents", () => {
+  const rows = buildReceiptDetailRows({
+    cashRoundingDifference: 1, creditPot: 252.43, totalTipsEarned: 353.43,
+    guestCount: 100, guaranteedMinimum: 400, paycheckDifference: 46.57,
+    paycheckEntries: [{ ...entry, tipout: 15.52 }]
+  }, [{ ...entry, tipout: 34, creditTipout: 84.14 }]);
+  assert.equal(rows[0][3], "$34");
+  assert.ok(rows.some(row => row[0] === "Extra cash needed for rounding:" && row[1] === "$1"));
+  assert.ok(rows.some(row => row[0] === "Credit Tip Pot:" && row[1] === "$252.43"));
+  assert.ok(rows.some(row => row[3] === "$84.14"));
+  assert.ok(rows.some(row => row[3] === "$118.14"));
+  assert.ok(rows.some(row => row[0] === "Additional Paycheck Amount:" && row[1] === "$46.57"));
+  assert.ok(rows.some(row => row[3] === "$15.52"));
+});
+
 test("backend offers personal earnings only to the authenticated Will account", () => {
   const source = fs.readFileSync(path.join(root, "google-apps-script.gs"), "utf8");
   const helper = source.slice(source.indexOf("function getPersonalEarningsProfile("), source.indexOf("function moneyWhole("));

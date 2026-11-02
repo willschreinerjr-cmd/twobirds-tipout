@@ -123,6 +123,15 @@ function buildReceiptDetailRows(payload, entries) {
         moneyWhole(entry.tipout)
       ])
     : [["", "", "", ""]];
+  if (payload.cashRoundingDifference) {
+    rows.push([
+      Number(payload.cashRoundingDifference) > 0 ? "Extra cash needed for rounding:" : "Cash remaining in pot:",
+      moneyWhole(Math.abs(Number(payload.cashRoundingDifference))), "", ""
+    ]);
+  }
+  if (payload.creditUnallocated) {
+    rows.push(["Credit tips not yet allocated:", moneyAmount(payload.creditUnallocated), "", ""]);
+  }
   if (payload.creditPot != null) {
     rows.push(["Credit Tip Pot:", moneyAmount(payload.creditPot), "", ""]);
     rows.push(["Credit Tips", "Name", "Hours", "Tipout"]);
@@ -131,6 +140,12 @@ function buildReceiptDetailRows(payload, entries) {
       entry.hours == null ? "" : Number(entry.hours), moneyAmount(entry.creditTipout)
     ]));
     rows.push(["With Credit Tips:", moneyAmount(payload.totalTipsEarned), "", ""]);
+    rows.push(["Cash + Credit", "Name", "Hours", "Total"]);
+    entries.forEach(entry => rows.push([
+      entry.role || "", normalizePersonName(entry.name),
+      entry.hours == null ? "" : Number(entry.hours),
+      moneyAmount(Number(entry.tipout) + Number(entry.creditTipout))
+    ]));
   }
   if (payload.guestCount != null) {
     rows.push(["Number of Guests:", Number(payload.guestCount), "", ""]);

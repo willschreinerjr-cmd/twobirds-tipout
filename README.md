@@ -9,17 +9,26 @@ web server; there is no compilation or application build step.
   optional and update the preview immediately; edits do not send receipts.
 - Cash and credit use the same time cards: training shares 10% when training
   staff have positive hours; shift managers and bartenders share the remainder
-  by hours. Hourly rates round to cents and individual payouts round down to whole
-  dollars, preserving the original calculation and cash formatting.
+  by hours. Cash hourly rates keep their existing cent rounding; individual
+  cash payouts now round UP to whole dollars. Cash is displayed without decimals.
+  Any extra cash needed above the pot (or cash still unallocated) is explicitly
+  shown in the results and receipt; it is not silently taken from credit tips.
+  Credit inputs accept cents and retain them in drafts. Credit and paycheck
+  allocations use the same role/hour weights without rounding the hourly rate
+  before allocation. Whole cents are assigned by largest fractional remainder
+  (row order breaks ties), so eligible staff shares add up exactly to the pool.
+  Displayed hourly rates, credit payouts, and combined amounts use two decimals.
 - The prominent cash total is the sum of staff cash payouts. **With Credit Tips**
   adds the separately calculated credit payouts, not a second tip-out.
 - The event-wide guarantee is $4 per guest. Its shortage is the nonnegative
   difference between that minimum and actual cash plus credit payouts. Blank
   guests disable the guarantee; zero guests explicitly enables a $0 guarantee.
   Invalid guest counts show a validation error and cannot be submitted.
-- Additional paycheck shares use the same time cards and distribution rules.
-  Any difference between the event shortage and whole-dollar shares appears as
-  a separate rounding adjustment; it is not silently discarded.
+- Additional paycheck shares use the same time cards and cent distribution.
+  The guarantee compares actual rounded-up cash payouts plus exact credit
+  payouts, not formatted hourly rates. Extra cash needed for rounding is part
+  of these actual cash payouts and must be funded separately. Paycheck amounts
+  retain cents. With no eligible staff, unallocated money remains explicit.
 - Drafts retain optional inputs; Reset clears them. Existing drafts still work.
 - **Calculate & Send Receipt** retains the manager, venue, name, and time-card
   requirements. It sends the current preview only when explicitly clicked.

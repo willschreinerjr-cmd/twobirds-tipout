@@ -898,8 +898,9 @@
       <div class="row optional-inputs">
         <div>
           <label for="creditPot">Credit Tips ($) (optional)</label>
-          <input id="creditPot" type="text" inputmode="numeric" pattern="[0-9$,.]*" placeholder="$" aria-describedby="creditHelp" />
+          <input id="creditPot" type="text" inputmode="decimal" pattern="[0-9$,.]*" placeholder="$" aria-describedby="creditHelp creditError" />
           <p id="creditHelp" class="field-help">Uses the same time cards and tip-out rules as cash.</p>
+          <p id="creditError" class="field-error" role="alert" hidden></p>
         </div>
         <div>
           <label for="guestCount">Number of Guests (optional)</label>
@@ -949,6 +950,8 @@
         <div id="combinedResult" class="credit-result" hidden>With Credit Tips: <span id="combinedTotal"></span></div>
       </div>
       <div id="resultsEmpty" class="results-empty ui-fade">Add staff hours to preview tipouts. Calculate &amp; Send Receipt sends the current results.</div>
+      <p id="cashRounding" class="field-help" hidden></p>
+      <p id="creditUnallocated" class="field-help" hidden></p>
       <table id="payoutTable" hidden>
         <thead>
           <tr>
@@ -970,7 +973,7 @@
             <thead><tr><th>Name</th><th class="right">Additional Paycheck</th></tr></thead>
             <tbody id="paycheckBody"></tbody>
           </table>
-          <p class="field-help">Shares use the same time cards, training percentage, and whole-dollar rounding as cash tips. Any rounding adjustment is shown below.</p>
+          <p class="field-help">Shares use the same hours and training percentage, with every cent allocated. Any unallocated amount is shown below.</p>
           <p id="paycheckRemainder" class="field-help" hidden></p>
         </div>
       </section>
@@ -1025,7 +1028,7 @@ const $ = id => document.getElementById(id);
 function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
 
-function calculateTipPool(pot, people){
+function calculateTipPool(pot, people, mode = "cash"){
   const payoutPeople = people.filter(person => Number.isFinite(person.hours) && person.hours > 0);
   const trainingPeople = payoutPeople.filter(person => person.role === "Training");
   const bartenderPeople = payoutPeople.filter(person => person.role !== "Training");
@@ -1035,13 +1038,28 @@ function calculateTipPool(pot, people){
   const trainingRate = trainingHours > 0 ? Math.round((trainingPool / trainingHours) * 100) / 100 : 0;
   const baseRate = bartenderHours > 0 ? Math.round(((pot - trainingPool) / bartenderHours) * 100) / 100 : 0;
   const entries = bartenderHours > 0 ? payoutPeople.map(person => {
-    const rate = person.role === "Training" ? trainingRate : baseRate;
-    return { role: person.role, name: person.name, hours: person.hours, rate, tipout: Math.floor(person.hours * rate) };
+    const pool = person.role === "Training" ? trainingPool : pot - trainingPool;
+    const hours = person.role === "Training" ? trainingHours : bartenderHours;
+    const rate = mode === "cash" ? (person.role === "Training" ? trainingRate : baseRate) : pool / hours;
+    return { role: person.role, name: person.name, hours: person.hours, rate,
+      tipout: mode === "cash" ? Math.ceil(Number((person.hours * rate).toFixed(10))) : 0 };
   }) : [];
+  if (mode === "cents" && entries.length) {
+    const cents = Math.round(pot * 100);
+    const shares = entries.map((entry, index) => {
+      const exact = entry.hours * entry.rate * 100;
+      return { index, cents: Math.floor(exact), fraction: exact - Math.floor(exact) };
+    });
+    const remaining = cents - shares.reduce((sum, share) => sum + share.cents, 0);
+    // Largest fractional shares receive leftover cents; original row order breaks ties.
+    const ranked = [...shares].sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+    for (let i = 0; i < remaining; i++) ranked[i % ranked.length].cents++;
+    shares.forEach(share => { entries[share.index].tipout = share.cents / 100; });
+  }
   return {
     entries, trainingPool, trainingRate, bartenderRate: baseRate,
     bartenderCount: bartenderPeople.length,
-    totalEarned: entries.reduce((sum, entry) => sum + entry.tipout, 0)
+    totalEarned: Math.round(entries.reduce((sum, entry) => sum + entry.tipout, 0) * 100) / 100
   };
 }
 
@@ -1063,9 +1081,9 @@ function calculatePersonalEarnings(result, profile){
   if (!indexes.length) return null;
   const hours = indexes.reduce((sum, index) => sum + result.cash.entries[index].hours, 0);
   const wages = Math.round(hours * profile.hourlyRate * 100) / 100;
-  const tips = indexes.reduce((sum, index) =>
-    sum + result.cash.entries[index].tipout + result.credit.entries[index].tipout, 0);
-  const paycheckShare = indexes.reduce((sum, index) => sum + result.paycheck.entries[index].tipout, 0);
+  const tips = Math.round(indexes.reduce((sum, index) =>
+    sum + result.cash.entries[index].tipout + result.credit.entries[index].tipout, 0) * 100) / 100;
+  const paycheckShare = Math.round(indexes.reduce((sum, index) => sum + result.paycheck.entries[index].tipout, 0) * 100) / 100;
   const baseGross = Math.round((wages + tips) * 100) / 100;
   const baseTax = Math.round(baseGross * profile.withholdingRate * 100) / 100;
   const withoutMinimum = { gross: baseGross, tax: baseTax, net: Math.round((baseGross - baseTax) * 100) / 100 };
@@ -1081,12 +1099,14 @@ function calculatePersonalEarnings(result, profile){
 
 function calculateEventTips(cashPot, creditPot, people, guestCount){
   const cash = calculateTipPool(cashPot, people);
-  const credit = calculateTipPool(creditPot, people);
-  const totalEarned = cash.totalEarned + credit.totalEarned;
+  const credit = calculateTipPool(creditPot, people, "cents");
+  const totalEarned = Math.round((cash.totalEarned + credit.totalEarned) * 100) / 100;
   const guaranteedMinimum = guestCount === null ? null : guestCount * 4;
-  const paycheckDifference = guaranteedMinimum === null ? 0 : Math.max(0, guaranteedMinimum - totalEarned);
-  const paycheck = calculateTipPool(paycheckDifference, people);
-  return { cash, credit, totalEarned, guaranteedMinimum, paycheckDifference, paycheck };
+  const paycheckDifference = guaranteedMinimum === null ? 0 : Math.max(0, Math.round((guaranteedMinimum - totalEarned) * 100) / 100);
+  const paycheck = calculateTipPool(paycheckDifference, people, "cents");
+  return { cash, credit, totalEarned, guaranteedMinimum, paycheckDifference, paycheck,
+    cashRoundingDifference: cash.totalEarned - cashPot,
+    creditUnallocated: Math.round((creditPot - credit.totalEarned) * 100) / 100 };
 }
 
 const VENUES = ["Ivy House", "Starling", "Rivulet", "PSP", "Society"];
@@ -2081,6 +2101,7 @@ function getCurrentCalculation(){
 }
 
 function updateResults(){
+  validateCreditInput();
   const guest = parseGuestCount($("guestCount").value);
   $("guestCount").setCustomValidity(guest.error);
   $("guestCount").setAttribute("aria-invalid", String(Boolean(guest.error)));
@@ -2091,7 +2112,13 @@ function updateResults(){
   const hasCredit = /\d/.test($("creditPot").value);
   const hasPayouts = result.cash.entries.length > 0;
   $("tipSummary").hidden = !hasPayouts && guest.count === null;
-  $("cashTotal").textContent = moneyRate(result.cash.totalEarned);
+  $("cashTotal").textContent = moneyWhole(result.cash.totalEarned);
+  $("cashRounding").hidden = result.cashRoundingDifference === 0;
+  $("cashRounding").textContent = result.cashRoundingDifference > 0
+    ? `Cash rounding: ${moneyWhole(result.cashRoundingDifference)} extra cash needed above the original pot.`
+    : `Cash remaining in pot: ${moneyWhole(-result.cashRoundingDifference)}.`;
+  $("creditUnallocated").hidden = result.creditUnallocated === 0;
+  $("creditUnallocated").textContent = `Credit tips not yet allocated: ${moneyRate(result.creditUnallocated)}. Add eligible staff hours.`;
   $("combinedResult").hidden = !hasCredit;
   $("combinedTotal").textContent = moneyRate(result.totalEarned);
   $("payoutTable").hidden = !hasPayouts;
@@ -2100,7 +2127,7 @@ function updateResults(){
     return `<tr>
       <td>${escapeHtml(entry.name)}</td>
       <td class="right">${moneyRate(entry.rate)}${hasCredit ? `<div class="credit-result">Credit: ${moneyRate(creditEntry.rate)}</div>` : ""}</td>
-      <td class="right"><div class="payout-values"><b>${moneyWhole(entry.tipout)}</b>${hasCredit ? `<span class="credit-result">With Credit Tips: ${moneyRate(entry.tipout + creditEntry.tipout)}</span>` : ""}</div></td>
+      <td class="right"><div class="payout-values"><b>${moneyWhole(entry.tipout)}</b>${hasCredit ? `<span class="credit-result">Credit Tips: ${moneyRate(creditEntry.tipout)}</span><span class="credit-result">With Credit Tips: ${moneyRate(entry.tipout + creditEntry.tipout)}</span>` : ""}</div></td>
     </tr>`;
   }).join("");
   setElementVisible($("resultsCard"), true);
@@ -2145,8 +2172,8 @@ async function downloadPersonalEarnings(preferShare = true){
   }
   const result = getCurrentCalculation();
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
-  if (!earnings || parseGuestCount($("guestCount").value).error) {
-    status.textContent = "Enter your hours and fix any guest-count error first.";
+  if (!earnings || parseGuestCount($("guestCount").value).error || !validateCreditInput()) {
+    status.textContent = "Enter your hours and fix any guest-count error or credit-tip error first.";
     return;
   }
   const date = todayLocalISO();
@@ -2288,7 +2315,23 @@ function enforceMoneyInput(input){
 }
 
 function getPotNumber(id = "pot"){
+  if (id === "creditPot") {
+    const value = $("creditPot").value.replace(/[$,]/g, "").trim();
+    const cents = Math.round(Number(value || 0) * 100);
+    return /^\d*(?:\.\d{0,2})?$/.test(value) && Number.isSafeInteger(cents) ? cents / 100 : 0;
+  }
   return Math.floor(+(String($(id).value || "").replace(/[^0-9]/g, "") || 0));
+}
+
+function validateCreditInput(){
+  const value = $("creditPot").value.replace(/[$,]/g, "").trim();
+  const error = /^\d*(?:\.\d{0,2})?$/.test(value) && Number.isSafeInteger(Math.round(Number(value || 0) * 100))
+    ? "" : "Enter credit tips as a nonnegative amount with up to two decimal places.";
+  $("creditPot").setCustomValidity(error);
+  $("creditPot").setAttribute("aria-invalid", String(Boolean(error)));
+  $("creditError").textContent = error;
+  $("creditError").hidden = !error;
+  return !error;
 }
 
 function enforceLettersOnly(input){
@@ -2539,6 +2582,7 @@ function getMissingCalculationMessage(){
 
   const guest = parseGuestCount($("guestCount").value);
   if (guest.error) return guest.error;
+  if (!validateCreditInput()) return $("creditError").textContent;
   if (getPotNumber() + getPotNumber("creditPot") <= 0 && guest.count === null) pushMissing("tip pot");
 
   const staffRows = getUnifiedStaffRows();
@@ -2620,8 +2664,7 @@ function restoreDraft(){
 
     const potDigits = String(draft.pot || "").replace(/\D+/g, "");
     $("pot").value = "$" + (potDigits ? Number(potDigits).toLocaleString() : "");
-    const creditDigits = String(draft.creditPot || "").replace(/\D+/g, "");
-    $("creditPot").value = creditDigits ? "$" + Number(creditDigits).toLocaleString() : "";
+    $("creditPot").value = String(draft.creditPot || "");
     $("guestCount").value = String(draft.guestCount ?? "");
     $("notes").value = String(draft.notes || "");
 
@@ -2973,7 +3016,13 @@ function hardReset(){
 }
 
 enforceMoneyInput($("pot"));
-enforceMoneyInput($("creditPot"));
+$("creditPot").addEventListener("input", validateCreditInput);
+$("creditPot").addEventListener("blur", () => {
+  if (validateCreditInput() && /\d/.test($("creditPot").value)) {
+    $("creditPot").value = moneyRate(getPotNumber("creditPot"));
+    saveDraft();
+  }
+});
 try { history.scrollRestoration = "manual"; } catch {}
 scrollToTop();
 window.addEventListener("load", () => {
@@ -3030,6 +3079,8 @@ $("calc").onclick = () => {
   const hasCredit = /\d/.test($("creditPot").value);
   latestReceipt = {
     totalPot: getPotNumber(),
+    cashRoundingDifference: result.cashRoundingDifference,
+    creditUnallocated: result.creditUnallocated,
     bartenderCount: result.cash.bartenderCount,
     bartenderRate: result.cash.bartenderRate,
     trainingPool: result.cash.trainingPool,
