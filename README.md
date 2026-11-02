@@ -45,7 +45,9 @@ plus his cash payouts and credit payouts. Two separate bottom sections compare:
 - **Without Tip Minimum:** hourly wages plus Will's actual tips after tip-out.
 - **With Tip Minimum:** those same earnings plus only Will's allocated guarantee
   paycheck share, using the existing time-card distribution. A valid guest count
-  is required; when the event minimum is met, both totals are identical.
+  is required. The extra-pay and earnings details appear only when the event
+  falls below the minimum. When the minimum is met, only the green status
+  remains, avoiding duplicate totals. The CSV still retains both comparisons.
   A green **Minimum met** message means no extra pay is needed; a red
   **Below minimum** message means extra pay is owed. This checks the event's
   actual combined tips against its $4-per-guest minimum, not hourly wages.

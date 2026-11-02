@@ -2238,7 +2238,8 @@ function updatePersonalEarnings(result){
       ? "Minimum met - no extra pay needed."
       : "Below minimum - extra pay is owed.";
   }
-  $("personalMinimumValues").hidden = !hasMinimum;
+  $("personalMinimumValues").hidden = !hasMinimum || minimumMet;
+  $("personalMinimumHelp").hidden = hasMinimum && minimumMet;
   $("personalMinimumHelp").textContent = !hasMinimum
     ? "Enter Number of Guests to check the minimum."
     : `Event minimum: ${moneyRate(result.guaranteedMinimum)} ($4 per guest). ` +
