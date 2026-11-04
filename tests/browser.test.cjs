@@ -80,6 +80,15 @@ async function text(page, id, expected) {
   assert.equal(await page.locator(`#${id}`).textContent(), expected, id);
 }
 
+test("Jon Slock is available as a bartender name suggestion", async t => {
+  const page = await openCalculator(t);
+  const nameInput = page.locator("#staffBody input").first();
+  await nameInput.fill("Jon");
+  await page.getByRole("button", { name: "Jon Slock", exact: true }).click();
+  assert.equal(await nameInput.inputValue(), "Jon Slock");
+  assert.equal(await page.locator("#staffBody .staff-role").first().inputValue(), "Bartender");
+});
+
 test("live cash, credit, guests, exceeded minimum, and optional-field clearing", async t => {
   const page = await openCalculator(t);
   await soloTimeCard(page);
