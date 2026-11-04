@@ -8,7 +8,7 @@ const { calculateTipPool, calculateEventTips, parseGuestCount } = loadCalculatio
 const staff = [
   { role: "Shift Manager", name: "Manager", hours: 5 },
   { role: "Bartender", name: "Bartender", hours: 3 },
-  { role: "Training", name: "Trainee", hours: 2 }
+  { role: "Bartender", name: "Second Bartender", hours: 2 }
 ];
 const solo = [{ role: "Shift Manager", name: "Manager", hours: 1 }];
 
@@ -20,16 +20,10 @@ test("both production scripts compile without a build step", () => {
 test("cash preserves original role and hourly rates but rounds each payout up", () => {
   for (const pot of [0, 1, 23, 100, 301, 1000]) {
     for (const people of [staff, solo, staff.slice(0, 2), staff.map(p => ({ ...p, hours: p.hours + 0.25 }))]) {
-      const training = people.filter(p => p.role === "Training");
-      const bartenders = people.filter(p => p.role !== "Training");
-      const trainingPool = training.length ? pot * 0.1 : 0;
-      const trainingHours = training.reduce((n, p) => n + p.hours, 0);
-      const bartenderHours = bartenders.reduce((n, p) => n + p.hours, 0);
-      const trainingRate = trainingHours ? Math.round(trainingPool / trainingHours * 100) / 100 : 0;
-      const baseRate = Math.round((pot - trainingPool) / bartenderHours * 100) / 100;
+      const payoutHours = people.reduce((n, p) => n + p.hours, 0);
+      const rate = Math.round((pot / payoutHours) * 100) / 100;
       const actual = calculateEventTips(pot, 0, people, null);
       people.forEach((p, index) => {
-        const rate = p.role === "Training" ? trainingRate : baseRate;
         assert.equal(actual.cash.entries[index].rate, rate);
         assert.equal(actual.cash.entries[index].tipout, Math.ceil(Number((p.hours * rate).toFixed(10))));
       });
@@ -43,7 +37,6 @@ test("credit and paycheck shares preserve weights and allocate every cent", () =
   const result = calculateEventTips(301, 301, staff, 200);
   assert.equal(result.credit.totalEarned, 301);
   assert.equal(result.totalEarned, result.cash.totalEarned + 301);
-  assert.equal(result.cash.trainingPool, 30.1);
   assert.deepEqual(result.paycheck, calculateTipPool(result.paycheckDifference, staff, "cents"));
   const creditOnly = calculateEventTips(0, 301, staff, null);
   assert.equal(creditOnly.cash.totalEarned, 0);
@@ -76,7 +69,12 @@ test("cash overages are explicit and guarantees use actual cents paid", () => {
   const unallocated = calculateEventTips(100, 25.43, [], 10);
   assert.equal(unallocated.creditUnallocated, 25.43);
   assert.equal(unallocated.cashRoundingDifference, -100);
-  assert.equal(calculateTipPool(10, [{ role: "Training", name: "Trainee", hours: 2 }], "cents").totalEarned, 0);
+  const excluded = calculateTipPool(10, [
+    { role: "Trainee", name: "Trainee", hours: 2 },
+    { role: "Server", name: "Server", hours: 2 }
+  ], "cents");
+  assert.equal(excluded.totalEarned, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(excluded.entries)), []);
 });
 
 test("guests only, shortages, exceeded minimum, zero guests, and absent guests", () => {
@@ -179,9 +177,10 @@ test("Renee's wages use her role-specific hourly rates and shared tax estimate",
   assert.equal(earnings.net, 314.89);
   assert.equal(earnings.hourlyGross, 79.47);
   assert.equal(earnings.hourlyNet, 62.98);
-  const unsupported = calculatePersonalEarnings(calculateEventTips(10, 0, [
-    { role: "Training", name: "Renee Ehlers", hours: 1 },
-    { role: "Bartender", name: "Someone Else", hours: 1 }
-  ], null), profile);
-  assert.match(unsupported.error, /No hourly rate is set for your Training shift/);
+  const unsupported = calculatePersonalEarnings({
+    cash: { entries: [{ role: "Server", name: "Renee Ehlers", hours: 1, tipout: 0 }] },
+    credit: { entries: [{ tipout: 0 }] },
+    paycheck: { entries: [{ tipout: 0 }] }
+  }, profile);
+  assert.match(unsupported.error, /No hourly rate is set for your Server shift/);
 });

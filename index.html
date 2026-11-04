@@ -479,11 +479,6 @@
       border-color:#111827;
       color:#111827;
     }
-    .staff-row[data-role="Training"] .staff-role{
-      background:#fff7ed;
-      border-color:#f97316;
-      color:#c2410c;
-    }
     .staff-role option[value="Shift Manager"]{
       background:#f3f4f6;
       color:#065f46;
@@ -492,13 +487,8 @@
       background:#fff;
       color:#111827;
     }
-    .staff-role option[value="Training"]{
-      background:#fff7ed;
-      color:#c2410c;
-    }
     .staff-row[data-role="Shift Manager"] td:first-child{ box-shadow:inset 3px 0 0 var(--green-dark); }
     .staff-row[data-role="Bartender"] td:first-child{ box-shadow:inset 3px 0 0 #111827; }
-    .staff-row[data-role="Training"] td:first-child{ box-shadow:inset 3px 0 0 #f97316; }
     .hours-input:disabled{
       background:#f3f4f6;
       color:#9ca3af;
@@ -973,7 +963,7 @@
             <thead><tr><th>Name</th><th class="right">Additional Paycheck</th></tr></thead>
             <tbody id="paycheckBody"></tbody>
           </table>
-          <p class="field-help">Shares use the same hours and training percentage, with every cent allocated. Any unallocated amount is shown below.</p>
+          <p class="field-help">Shares use the same shift-manager and bartender hours, with every cent allocated. Any unallocated amount is shown below.</p>
           <p id="paycheckRemainder" class="field-help" hidden></p>
         </div>
       </section>
@@ -1029,18 +1019,14 @@ function moneyWhole(n){ return "$" + Math.floor(n).toLocaleString(); }
 function moneyRate(n){ return isFinite(n) ? "$" + n.toFixed(2) : "—"; }
 
 function calculateTipPool(pot, people, mode = "cash"){
-  const payoutPeople = people.filter(person => Number.isFinite(person.hours) && person.hours > 0);
-  const trainingPeople = payoutPeople.filter(person => person.role === "Training");
-  const bartenderPeople = payoutPeople.filter(person => person.role !== "Training");
-  const trainingHours = trainingPeople.reduce((sum, person) => sum + person.hours, 0);
-  const bartenderHours = bartenderPeople.reduce((sum, person) => sum + person.hours, 0);
-  const trainingPool = trainingPeople.length ? pot * TRAINING_POOL_RATE : 0;
-  const trainingRate = trainingHours > 0 ? Math.round((trainingPool / trainingHours) * 100) / 100 : 0;
-  const baseRate = bartenderHours > 0 ? Math.round(((pot - trainingPool) / bartenderHours) * 100) / 100 : 0;
-  const entries = bartenderHours > 0 ? payoutPeople.map(person => {
-    const pool = person.role === "Training" ? trainingPool : pot - trainingPool;
-    const hours = person.role === "Training" ? trainingHours : bartenderHours;
-    const rate = mode === "cash" ? (person.role === "Training" ? trainingRate : baseRate) : pool / hours;
+  const payoutPeople = people.filter(person =>
+    ["Shift Manager", "Bartender"].includes(person.role) &&
+    Number.isFinite(person.hours) && person.hours > 0
+  );
+  const payoutHours = payoutPeople.reduce((sum, person) => sum + person.hours, 0);
+  const baseRate = payoutHours > 0 ? pot / payoutHours : 0;
+  const entries = payoutHours > 0 ? payoutPeople.map(person => {
+    const rate = mode === "cash" ? Math.round(baseRate * 100) / 100 : baseRate;
     return { role: person.role, name: person.name, hours: person.hours, rate,
       tipout: mode === "cash" ? Math.ceil(Number((person.hours * rate).toFixed(10))) : 0 };
   }) : [];
@@ -1057,8 +1043,7 @@ function calculateTipPool(pot, people, mode = "cash"){
     shares.forEach(share => { entries[share.index].tipout = share.cents / 100; });
   }
   return {
-    entries, trainingPool, trainingRate, bartenderRate: baseRate,
-    bartenderCount: bartenderPeople.length,
+    entries,
     totalEarned: Math.round(entries.reduce((sum, entry) => sum + entry.tipout, 0) * 100) / 100
   };
 }
@@ -1264,7 +1249,6 @@ const STAFF_NAMES = [
 const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y/edit?usp=sharing";
 const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
 const DRAFT_KEY = "twobirds-tipout-draft-v1";
-const TRAINING_POOL_RATE = 0.10;
 const MANAGER_PIN_KEY = "twobirds-manager-auth-v1";
 const MANAGER_TOKEN_KEY = "twobirds-manager-token-v1";
 const MANAGER_TOKEN_EXP_KEY = "twobirds-manager-token-exp-v1";
@@ -1983,8 +1967,7 @@ function sortStaffRowsByRole(){
 
   const roleOrder = {
     "Shift Manager": 0,
-    "Bartender": 1,
-    "Training": 2
+    "Bartender": 1
   };
 
   const rows = [...body.querySelectorAll("tr")];
@@ -2011,7 +1994,6 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
       <select class="staff-role">
         <option value="Shift Manager">Shift Manager</option>
         <option value="Bartender">Bartender</option>
-        <option value="Training">Training</option>
       </select>
     </td>
     <td><input placeholder="Name" value="${escapeHtml(name)}"></td>
@@ -2031,7 +2013,7 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
     hoursInput.placeholder = "0";
   };
 
-  const normalizedRole = ["Shift Manager", "Bartender", "Training"].includes(role) ? role : "Bartender";
+  const normalizedRole = ["Shift Manager", "Bartender"].includes(role) ? role : "Bartender";
   roleSelect.value = normalizedRole === "Shift Manager" && hasExistingShiftManager(tr) ? "Bartender" : normalizedRole;
   let previousRole = roleSelect.value;
 
@@ -2684,7 +2666,7 @@ function getMissingCalculationMessage(){
     let hasInvalidName = false;
 
     staffRows.forEach((row, idx) => {
-      const role = ["Shift Manager", "Bartender", "Training"].includes(row.role) ? row.role : "Bartender";
+      const role = ["Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
       const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
 
       if (!cleanedName) {
@@ -2705,7 +2687,7 @@ function getMissingCalculationMessage(){
 
     const hasPayoutRow = staffRows.some(row => (+row.inputs[1]?.value || 0) > 0);
     if (!hasPayoutRow) pushMissing("staff hours");
-    if (!staffRows.some(row => row.role !== "Training" && Number.isFinite(row.hours) && row.hours > 0)) {
+    if (!staffRows.some(row => ["Shift Manager", "Bartender"].includes(row.role) && Number.isFinite(row.hours) && row.hours > 0)) {
       pushMissing("bartender hours");
     }
   }
@@ -2760,6 +2742,7 @@ function restoreDraft(){
     if (Array.isArray(draft.staff)) {
       draft.staff.forEach(row => {
         const role = String(row?.role || "Bartender");
+        if (role === "Training") return;
         const name = normalizeName(row?.name || "");
         const hours = row?.hours || "";
         addStaff(role, name, hours, false);
@@ -3168,10 +3151,6 @@ $("calc").onclick = () => {
     totalPot: getPotNumber(),
     cashRoundingDifference: result.cashRoundingDifference,
     creditUnallocated: result.creditUnallocated,
-    bartenderCount: result.cash.bartenderCount,
-    bartenderRate: result.cash.bartenderRate,
-    trainingPool: result.cash.trainingPool,
-    trainingRate: result.cash.trainingRate,
     entries: result.cash.entries.map((entry, index) => ({
       ...entry,
       ...(hasCredit ? {

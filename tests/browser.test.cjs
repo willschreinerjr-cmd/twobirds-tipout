@@ -147,12 +147,9 @@ test("time-card hours, roles, additions and removals update every dependent payo
   await fill(page, "pot", "100");
   await fill(page, "creditPot", "100");
   await fill(page, "guestCount", "100");
-  await page.evaluate(() => addStaff("Training", "Test Trainee", "2", false));
+  await page.evaluate(() => addStaff("Bartender", "Second Bartender", "2", false));
+  assert.deepEqual(await page.locator(".staff-role option").allTextContents(), ["Shift Manager", "Bartender", "Shift Manager", "Bartender"]);
   assert.equal(await page.locator("#resultsBody tr").count(), 2);
-  assert.equal(await page.locator("#resultsBody b").nth(0).textContent(), "$90");
-  assert.equal(await page.locator("#resultsBody b").nth(1).textContent(), "$10");
-  await text(page, "paycheckAmount", "$200.00");
-  await page.locator(".staff-role").nth(1).selectOption("Bartender");
   assert.equal(await page.locator("#resultsBody b").nth(0).textContent(), "$34");
   assert.equal(await page.locator("#resultsBody b").nth(1).textContent(), "$67");
   await text(page, "totalTipsEarned", "$201.00");
@@ -168,6 +165,23 @@ test("time-card hours, roles, additions and removals update every dependent payo
   assert.equal(await page.locator("#payoutTable").isVisible(), false);
   await text(page, "totalTipsEarned", "$0.00");
   await text(page, "paycheckAmount", "$400.00");
+});
+
+test("legacy drafts discard training-only time cards", async t => {
+  const page = await openCalculator(t);
+  await page.evaluate(() => {
+    localStorage.setItem("twobirds-tipout-draft-v1", JSON.stringify({
+      pot: "$100",
+      staff: [
+        { role: "Shift Manager", name: "Test Manager", hours: "1" },
+        { role: "Training", name: "Test Trainee", hours: "2" }
+      ]
+    }));
+  });
+  await page.reload();
+  assert.equal(await page.locator("#staffBody .staff-row").count(), 1);
+  assert.equal(await page.locator("#staffBody input").first().inputValue(), "Test Manager");
+  assert.deepEqual(await page.locator(".staff-role option").allTextContents(), ["Shift Manager", "Bartender"]);
 });
 
 test("new fields persist after reload and legacy drafts remain compatible", async t => {

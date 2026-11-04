@@ -7,10 +7,10 @@ web server; there is no compilation or application build step.
 
 - **Total Tip Pot** remains the cash pot. Credit Tips and Number of Guests are
   optional and update the preview immediately; edits do not send receipts.
-- Cash and credit use the same time cards: training shares 10% when training
-  staff have positive hours; shift managers and bartenders share the remainder
-  by hours. Cash hourly rates keep their existing cent rounding; individual
-  cash payouts now round UP to whole dollars. Cash is displayed without decimals.
+- Cash and credit use the same time cards: shift managers and bartenders share
+  tips by hours; trainees are not included. Cash hourly rates keep their existing
+  cent rounding; individual cash payouts now round UP to whole dollars. Cash is
+  displayed without decimals.
   Any extra cash needed above the pot (or cash still unallocated) is explicitly
   shown in the results and receipt; it is not silently taken from credit tips.
   Credit inputs accept cents and retain them in drafts. Credit and paycheck
@@ -24,7 +24,7 @@ web server; there is no compilation or application build step.
   difference between that minimum and actual cash plus credit payouts. Blank
   guests disable the guarantee; zero guests explicitly enables a $0 guarantee.
   Invalid guest counts show a validation error and cannot be submitted.
-- Additional paycheck shares use the same time cards and cent distribution.
+- Additional paycheck shares use the same shift-manager and bartender time cards and cent distribution.
   The guarantee compares actual rounded-up cash payouts plus exact credit
   payouts, not formatted hourly rates. Extra cash needed for rounding is part
   of these actual cash payouts and must be funded separately. Paycheck amounts

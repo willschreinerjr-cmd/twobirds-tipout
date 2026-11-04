@@ -9,7 +9,7 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 function loadCalculations() {
   const context = vm.createContext({});
   const helpers = script.slice(script.indexOf("function calculateTipPool("), script.indexOf("const VENUES"));
-  vm.runInContext(`const TRAINING_POOL_RATE = 0.10;\n${helpers}`, context);
+  vm.runInContext(helpers, context);
   return context;
 }
 
