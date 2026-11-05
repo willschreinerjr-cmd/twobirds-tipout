@@ -10,7 +10,6 @@ const FINDER_COLUMNS = 2;
 const WORKDAY_ROLLOVER_HOUR = 3;
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const AUTH_SESSION_KEY_PREFIX = "managerAuthSession:";
-const ADDITIONAL_MANAGER_PINS_PROPERTY = "ADDITIONAL_MANAGER_PINS_JSON";
 const MANAGER_PINS = {
   "1218": "Will Schreiner",
   "0424": "Olivia Bartels",
@@ -25,39 +24,6 @@ const MANAGER_PINS = {
   "5596": "Lacey Kremer",
   "1290": "Ben McGill"
 };
-
-function getManagerNameForPin(pin) {
-  const cleanPin = String(pin || "").replace(/\D+/g, "").slice(0, 4);
-  if (Object.prototype.hasOwnProperty.call(MANAGER_PINS, cleanPin)) {
-    return MANAGER_PINS[cleanPin];
-  }
-
-  const raw = PropertiesService.getScriptProperties()
-    .getProperty(ADDITIONAL_MANAGER_PINS_PROPERTY);
-  if (!raw) return "";
-
-  let additionalPins;
-  try {
-    additionalPins = JSON.parse(raw);
-  } catch (err) {
-    throw new Error("Additional manager PIN configuration must be valid JSON.");
-  }
-  if (!additionalPins || typeof additionalPins !== "object" || Array.isArray(additionalPins)) {
-    throw new Error("Additional manager PIN configuration must be a JSON object.");
-  }
-
-  Object.keys(additionalPins).forEach(configuredPin => {
-    const managerName = additionalPins[configuredPin];
-    if (!/^\d{4}$/.test(configuredPin) || typeof managerName !== "string" || !managerName.trim()) {
-      throw new Error("Additional manager PIN entries must map four-digit PINs to manager names.");
-    }
-    if (Object.prototype.hasOwnProperty.call(MANAGER_PINS, configuredPin)) {
-      throw new Error("Additional manager PIN configuration conflicts with an existing manager PIN.");
-    }
-  });
-
-  return additionalPins[cleanPin] || "";
-}
 
 function createJsonResponse(data) {
   return ContentService
@@ -994,7 +960,7 @@ function doPost(e) {
 
     if (action === "authManagerPin") {
       const pin = String(payload.pin || "").replace(/\D+/g, "").slice(0, 4);
-      const managerName = getManagerNameForPin(pin);
+      const managerName = MANAGER_PINS[pin];
       if (!managerName) {
         throw new Error("Invalid manager PIN.");
       }

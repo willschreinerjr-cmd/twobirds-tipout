@@ -115,12 +115,6 @@ update and redeploy the existing Google Apps Script web app as well. If the
 deployment URL changes, update `RECEIPT_ENDPOINT` in [index.html](index.html).
 An older backend will ignore the new optional receipt fields.
 
-Additional manager PINs can be configured without putting PINs in source control.
-In the Apps Script project, open **Project Settings > Script Properties** and set
-`ADDITIONAL_MANAGER_PINS_JSON` to a JSON object mapping four-digit PINs to manager
-names. Built-in PINs cannot be overridden. After changing the backend code or its
-configuration, update the existing web app deployment to use the current code.
-
 ## Verification
 
 Requires Node.js 22+ for the PDF validation tooling:
