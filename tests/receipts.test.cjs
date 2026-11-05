@@ -68,3 +68,24 @@ test("backend offers each personal profile only to its matching authenticated ac
   assert.equal(context.getPersonalEarningsProfile("Renee"), null);
   assert.equal(context.getPersonalEarningsProfile("renee ehlers").owner, "Renee Ehlers");
 });
+
+test("backend accepts additional manager PINs from Script Properties without overriding built-in PINs", () => {
+  const source = fs.readFileSync(path.join(root, "google-apps-script.gs"), "utf8");
+  const constants = source.slice(source.indexOf("const ADDITIONAL_MANAGER_PINS_PROPERTY"), source.indexOf("function createJsonResponse("));
+  const lookup = source.slice(source.indexOf("function getManagerNameForPin("), source.indexOf("function createJsonResponse("));
+  let additionalPins = JSON.stringify({ "4321": "Test Manager" });
+  const context = vm.createContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: key => key === "ADDITIONAL_MANAGER_PINS_JSON" ? additionalPins : null
+      })
+    }
+  });
+  vm.runInContext(constants + lookup, context);
+
+  assert.equal(context.getManagerNameForPin("4321"), "Test Manager");
+  assert.equal(context.getManagerNameForPin("1218"), "Will Schreiner");
+  assert.equal(context.getManagerNameForPin("9999"), "");
+  additionalPins = "{invalid";
+  assert.throws(() => context.getManagerNameForPin("4321"), /valid JSON/);
+});
