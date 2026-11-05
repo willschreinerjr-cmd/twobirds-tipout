@@ -22,7 +22,8 @@ const MANAGER_PINS = {
   "8121": "JJ Ingrassia",
   "3805": "Alex Kerkman",
   "5596": "Lacey Kremer",
-  "1290": "Ben McGill"
+  "1290": "Ben McGill",
+  "2334": "Jake Faapito"
 };
 
 function createJsonResponse(data) {
