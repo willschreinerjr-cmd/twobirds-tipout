@@ -115,7 +115,7 @@ const SHIFT_SHEET = "Shifts";
 const PAYCHECK_SHEET = "Paychecks";
 const SHIFT_COLUMNS = [
   "id", "shiftDate", "venue", "hours", "wages", "cashTips", "creditTips",
-  "tipMinimum", "gross", "tax", "net", "savedAt", "updatedAt"
+  "tipMinimum", "gross", "tax", "net", "savedAt", "updatedAt", "wedding"
 ];
 const PAYCHECK_COLUMNS = ["periodStart", "actualPaycheck", "updatedAt"];
 
@@ -185,14 +185,16 @@ function buildTrackerShift(input, hourlyRate, withholdingRate) {
   }
   const cashTips = parseTrackerAmount(input.cashTips, "Cash tips");
   const creditTips = parseTrackerAmount(input.creditTips, "Credit tips");
-  const tipMinimum = parseTrackerAmount(input.tipMinimum, "Tip minimum");
+  // The $4-per-guest minimum applies only to weddings.
+  const wedding = input.wedding === true || /^(yes|true)$/i.test(String(input.wedding || ""));
+  const tipMinimum = wedding ? parseTrackerAmount(input.tipMinimum, "Tip minimum") : 0;
   // Matches calculatePersonalEarnings in index.html so saved totals equal the on-screen totals.
   const wages = roundCents(hours * hourlyRate);
   const tips = roundCents(cashTips + creditTips);
   const gross = roundCents(wages + tips + tipMinimum);
   const tax = roundCents(gross * withholdingRate);
   const net = roundCents(gross - tax);
-  return { shiftDate, venue, hours, wages, cashTips, creditTips, tipMinimum, gross, tax, net };
+  return { shiftDate, venue, hours, wages, cashTips, creditTips, tipMinimum, gross, tax, net, wedding };
 }
 
 function getTrackerSpreadsheet() {
@@ -217,6 +219,10 @@ function getTrackerSheet(spreadsheet, name, columns) {
   if (sheet.getLastRow() === 0) {
     writeTrackerRow(sheet, 1, columns);
     sheet.setFrozenRows(1);
+  } else {
+    const header = sheet.getRange(1, 1, 1, columns.length).getValues()[0].map(String);
+    // Adds columns introduced after the sheet was created; existing rows are untouched.
+    if (columns.some((column, index) => header[index] !== column)) writeTrackerRow(sheet, 1, columns);
   }
   return sheet;
 }
@@ -240,7 +246,8 @@ function readTrackerRows(sheet, columns) {
 
 function toTrackerShift(record) {
   const shift = { id: record.id, shiftDate: record.shiftDate, venue: record.venue,
-    savedAt: record.savedAt, updatedAt: record.updatedAt };
+    savedAt: record.savedAt, updatedAt: record.updatedAt,
+    wedding: [true, "yes"].includes(record.wedding) ? true : [false, "no"].includes(record.wedding) ? false : null };
   ["hours", "wages", "cashTips", "creditTips", "tipMinimum", "gross", "tax", "net"].forEach(key => {
     shift[key] = Number(record[key]) || 0;
   });
@@ -248,7 +255,7 @@ function toTrackerShift(record) {
 }
 
 function shiftToRow(shift) {
-  return SHIFT_COLUMNS.map(column => shift[column]);
+  return SHIFT_COLUMNS.map(column => column === "wedding" ? (shift.wedding ? "yes" : "no") : shift[column]);
 }
 
 function sameShiftSlot(record, shiftDate, venue) {

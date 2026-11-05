@@ -20,7 +20,13 @@ web server; there is no compilation or application build step.
   Displayed hourly rates, credit payouts, and combined amounts use two decimals.
 - The prominent cash total is the sum of staff cash payouts. **With Credit Tips**
   adds the separately calculated credit payouts, not a second tip-out.
-- The event-wide guarantee is $4 per guest. Its shortage is the nonnegative
+- **Is this event a wedding?** (Yes/No, default No) controls the guarantee. The
+  $4-per-guest minimum applies only when Yes is selected; the guest count field
+  is shown only for weddings. With No, any entered or saved guest count is
+  ignored: there is no guarantee, no minimum messages, and no tip minimum in
+  personal earnings, estimated tax, the PDF, or saved shifts. The selection is
+  saved in drafts (older drafts default to No) and Reset returns it to No.
+- The event-wide wedding guarantee is $4 per guest. Its shortage is the nonnegative
   difference between that minimum and actual cash plus credit payouts. Blank
   guests disable the guarantee; zero guests explicitly enables a $0 guarantee.
   Invalid guest counts show a validation error.
@@ -118,8 +124,10 @@ backend returns no tracker flag and the page never creates the tracker controls.
 the existing personal earnings code; the data itself is only served to Will.)
 
 - **Save My Shift** (in Will's personal earnings section) saves the current
-  shift: date, venue, hours, hourly wages, cash tips, credit tips, and any tip
-  minimum share. Totals are recalculated on the server using the same rate,
+  shift: date, venue, wedding status, hours, hourly wages, cash tips, credit
+  tips, and any tip minimum share. The server stores a $0 tip minimum for any
+  shift not marked as a wedding. Shifts saved before wedding status existed keep
+  their recorded earnings and show "Not recorded" until edited. Totals are recalculated on the server using the same rate,
   rounding, and estimated withholding as the calculator. The shift date defaults
   to today, and a shift saved before 3 AM counts toward the previous day.
 - One shift is kept per date and venue. Saving again asks before replacing it.

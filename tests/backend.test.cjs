@@ -104,7 +104,7 @@ test("Will can save, replace, correct, and delete shifts with server-calculated 
   assert.equal(duplicate.shifts[0].cashTips, 100);
 
   const replaced = trackerCall(backend, will, "trackerSaveShift", {
-    replace: true, shift: { ...shiftInput, venue: "ivy house", cashTips: 200, tipMinimum: 25.5 }
+    replace: true, shift: { ...shiftInput, venue: "ivy house", cashTips: 200, tipMinimum: 25.5, wedding: true }
   });
   assert.equal(replaced.replaced, true);
   assert.equal(replaced.shifts.length, 1);
@@ -152,4 +152,28 @@ test("actual paychecks are stored per valid two-week pay period", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(response.paychecks)), { "2026-10-26": 512.35, "2026-09-28": 400 });
   response = trackerCall(backend, will, "trackerSetPaycheck", { periodStart: "2026-10-26", actualPaycheck: null });
   assert.deepEqual(JSON.parse(JSON.stringify(response.paychecks)), { "2026-09-28": 400 });
+});
+
+test("non-wedding shifts never store a tip minimum, and older shifts keep their recorded earnings", () => {
+  const backend = loadBackend();
+  const will = signIn(backend, WILL_PIN);
+  const nonWedding = trackerCall(backend, will, "trackerSaveShift", { shift: { ...shiftInput, tipMinimum: 100, wedding: false } });
+  assert.deepEqual([nonWedding.saved.wedding, nonWedding.saved.tipMinimum, nonWedding.saved.gross], [false, 0, 225]);
+  const missingFlag = trackerCall(backend, will, "trackerSaveShift", { shift: { ...shiftInput, shiftDate: "2026-11-06", tipMinimum: 100 } });
+  assert.deepEqual([missingFlag.saved.wedding, missingFlag.saved.tipMinimum], [false, 0]);
+  const wedding = trackerCall(backend, will, "trackerSaveShift", { shift: { ...shiftInput, shiftDate: "2026-11-07", tipMinimum: 100, wedding: "yes" } });
+  assert.deepEqual([wedding.saved.wedding, wedding.saved.tipMinimum, wedding.saved.gross], [true, 100, 325]);
+  const toNonWedding = trackerCall(backend, will, "trackerUpdateShift", {
+    id: wedding.saved.id, shift: { ...shiftInput, shiftDate: "2026-11-07", tipMinimum: 100, wedding: "no" }
+  });
+  const updated = toNonWedding.shifts.find(shift => shift.id === wedding.saved.id);
+  assert.deepEqual([updated.wedding, updated.tipMinimum, updated.gross], [false, 0, 225]);
+
+  const sheet = backend.spreadsheets[0].getSheetByName("Shifts");
+  sheet.rows[0] = sheet.rows[0].slice(0, 13);
+  sheet.rows.push(["legacy-1", "2026-10-28", "Ivy House", "5", "75", "100", "50", "50", "275", "57.06", "217.94", "2026-10-28T05:00:00.000Z", "2026-10-28T05:00:00.000Z"]);
+  const listed = trackerCall(backend, will, "trackerList");
+  const legacy = listed.shifts.find(shift => shift.id === "legacy-1");
+  assert.deepEqual([legacy.wedding, legacy.tipMinimum, legacy.gross, legacy.net], [null, 50, 275, 217.94]);
+  assert.equal(sheet.rows[0][13], "wedding", "header gains the wedding column");
 });

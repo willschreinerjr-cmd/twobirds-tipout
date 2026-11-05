@@ -72,7 +72,13 @@ async function soloTimeCard(page) {
   });
 }
 
+async function setWedding(page, isWedding) {
+  await page.locator(`.segmented label:has(input[value="${isWedding ? "yes" : "no"}"])`).click();
+}
+
 async function fill(page, id, value) {
+  // Guest counts only apply to weddings; existing guarantee tests describe wedding events.
+  if (id === "guestCount" && !(await page.evaluate(() => isWeddingEvent()))) await setWedding(page, true);
   await page.locator(`#${id}`).fill(value);
 }
 
@@ -867,4 +873,78 @@ test("the earnings tracker never appears or loads for anyone except Will's verif
     }
   }, jake);
   assert.match(ownName, /Unsupported action/);
+});
+
+test("non-wedding events never receive the $4-per-guest guarantee, even with a guest count entered", async t => {
+  const page = await openCalculator(t, 390);
+  await useFakeBackend(page);
+  assert.equal(await page.locator('input[name="isWedding"][value="no"]').isChecked(), true, "defaults to No");
+  assert.equal(await page.locator("#guestField").isVisible(), false);
+  await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
+  await page.locator("#earningsTracker").waitFor();
+  await fill(page, "pot", "200");
+  await fill(page, "creditPot", "100");
+
+  await fill(page, "guestCount", "100");
+  assert.equal(await page.evaluate(() => isWeddingEvent()), true);
+  await text(page, "paycheckAmount", "$100.00");
+  await text(page, "personalGross", "$275.00");
+  assert.equal(await page.locator("#personalMinimumStatus").isVisible(), true);
+
+  await setWedding(page, false);
+  assert.equal(await page.locator("#guestCount").inputValue(), "100", "the guest count is kept but ignored");
+  const result = await page.evaluate(() => JSON.parse(JSON.stringify(getCurrentCalculation())));
+  assert.deepEqual([result.guaranteedMinimum, result.paycheckDifference, result.paycheck.totalEarned], [null, 0, 0]);
+  assert.equal(await page.locator("#guaranteeSection").isVisible(), false);
+  assert.equal(await page.locator("#withMinimumSection").isVisible(), false);
+  assert.equal(await page.locator("#personalMinimumStatus").isVisible(), false);
+  await text(page, "withoutMinimumTitle", "Your Earnings");
+  await text(page, "personalBaseGross", "$225.00");
+  await text(page, "personalBaseNet", "$178.32");
+  assert.doesNotMatch(await page.locator("#resultsCard").innerText(), /minimum|guarantee|additional paycheck|extra pay/i);
+  const earnings = await page.evaluate(() => JSON.parse(JSON.stringify(calculatePersonalEarnings(getCurrentCalculation(), personalEarningsProfile))));
+  assert.deepEqual([earnings.paycheckShare, earnings.gross, earnings.tax, earnings.net], [0, 225, 46.68, 178.32]);
+
+  assert.match(await saveShift(page, "2026-11-05"), /\$225\.00 before tax/);
+  const detail = await page.locator(".tracker-detail").textContent();
+  assert.match(detail, /Wedding\s*No/);
+  assert.doesNotMatch(detail, /Tip minimum/);
+
+  await setWedding(page, true);
+  await text(page, "personalGross", "$275.00");
+  await fill(page, "guestCount", "abc");
+  assert.equal(await page.locator("#guestError").isVisible(), true);
+  await setWedding(page, false);
+  assert.equal(await page.locator("#guestError").isVisible(), false, "a leftover invalid guest count does not block non-weddings");
+  assert.match(await saveShift(page, "2026-11-06"), /Saved your Nov 6 shift: \$225\.00/);
+
+  await page.reload();
+  assert.equal(await page.locator('input[name="isWedding"][value="no"]').isChecked(), true);
+  assert.equal(await page.evaluate(() => getCurrentCalculation().paycheckDifference), 0);
+  await page.evaluate(() => {
+    document.getElementById("pinGate").style.display = "none";
+    document.body.classList.remove("pin-gate-active");
+  });
+  await setWedding(page, true);
+  await fill(page, "guestCount", "100");
+  await page.reload();
+  assert.equal(await page.locator('input[name="isWedding"][value="yes"]').isChecked(), true);
+  await text(page, "paycheckAmount", "$100.00");
+
+  await page.evaluate(() => localStorage.setItem("twobirds-tipout-draft-v1", JSON.stringify({
+    pot: "$200", guestCount: "100", staff: [{ role: "Shift Manager", name: "Test Manager", hours: "1" }]
+  })));
+  await page.reload();
+  assert.equal(await page.locator('input[name="isWedding"][value="no"]').isChecked(), true, "older drafts default to No");
+  assert.equal(await page.evaluate(() => getCurrentCalculation().guaranteedMinimum), null);
+  assert.equal(await page.locator("#guaranteeSection").isVisible(), false);
+
+  await page.evaluate(() => {
+    document.getElementById("pinGate").style.display = "none";
+    document.body.classList.remove("pin-gate-active");
+  });
+  await setWedding(page, true);
+  await page.locator("#reset").click();
+  assert.equal(await page.locator('input[name="isWedding"][value="no"]').isChecked(), true, "reset returns to No");
+  assert.equal(await page.locator("#guestField").isVisible(), false);
 });

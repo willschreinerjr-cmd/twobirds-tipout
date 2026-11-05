@@ -554,6 +554,14 @@
     .optional-inputs{ margin-top:12px; }
     .field-help{ color:var(--muted); font-size:12px; margin:6px 0 0; }
     .field-error{ color:#b91c1c; font-size:13px; margin:6px 0 0; }
+    .field-label{ display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
+    .segmented{ display:flex; gap:0; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:#fff; }
+    .segmented label{ flex:1; margin:0; font-size:16px; cursor:pointer; }
+    .segmented input{ position:absolute; opacity:0; width:1px; height:1px; margin:0; padding:0; pointer-events:none; }
+    .segmented span{ display:block; padding:13px 16px; text-align:center; font-weight:700; color:#374151; transition:background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+    .segmented label + label span{ border-left:1px solid var(--border); }
+    .segmented input:checked + span{ background:var(--green); color:#fff; }
+    .segmented input:focus-visible + span{ box-shadow:inset 0 0 0 3px rgba(31,157,85,0.35); }
     .tip-summary{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px 24px; margin-bottom:14px; }
     .cash-total{ font-size:24px; font-weight:900; }
     .credit-result{ color:var(--muted); font-size:14px; font-weight:500; }
@@ -598,7 +606,7 @@
     button.danger:hover{ background:#fee2e2; }
     .tracker-edit{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:12px; }
     .tracker-edit label{ margin:0; font-size:12px; }
-    .tracker-edit input{ margin-top:4px; padding:8px 10px; font-size:16px; }
+    .tracker-edit input, .tracker-edit select{ display:block; width:100%; margin-top:4px; padding:8px 10px; font-size:16px; border:1px solid var(--border); border-radius:10px; background:#fff; }
     .tracker-edit-help, .tracker-edit .tracker-actions{ grid-column:1 / -1; margin:0; }
     .tracker-summary{ border-top:1px solid var(--border); margin-top:16px; padding-top:8px; }
     .tracker-total{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 12px; padding:8px 0; }
@@ -897,6 +905,14 @@
           <p id="creditError" class="field-error" role="alert" hidden></p>
         </div>
         <div>
+          <span id="weddingLabel" class="field-label">Is this event a wedding?</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="weddingLabel" aria-describedby="weddingHelp">
+            <label><input type="radio" name="isWedding" value="yes"><span>Yes</span></label>
+            <label><input type="radio" name="isWedding" value="no" checked><span>No</span></label>
+          </div>
+          <p id="weddingHelp" class="field-help">The $4-per-guest tip minimum applies only to weddings.</p>
+        </div>
+        <div id="guestField" hidden>
           <label for="guestCount">Number of Guests (optional)</label>
           <input id="guestCount" type="text" inputmode="numeric" pattern="[0-9]*" aria-describedby="guestHelp guestError" />
           <p id="guestHelp" class="field-help">$4 per guest, guaranteed across the event.</p>
@@ -973,7 +989,7 @@
             <div class="guarantee-line"><span class="personal-tax-label">Estimated Tax:</span><span id="personalBaseTax"></span></div>
             <div class="earnings-highlight daily-total"><span>Total After Estimated Tax</span><strong id="personalBaseNet"></strong></div>
           </section>
-          <section class="guarantee-section" aria-labelledby="withMinimumTitle">
+          <section id="withMinimumSection" class="guarantee-section" aria-labelledby="withMinimumTitle">
             <h2 id="withMinimumTitle">With Tip Minimum</h2>
             <p id="personalMinimumStatus" class="minimum-status" hidden></p>
             <p id="personalMinimumHelp" class="field-help"></p>
@@ -2076,17 +2092,31 @@ function showToast(message){
   }, 1500);
 }
 
+function isWeddingEvent(){
+  return document.querySelector('input[name="isWedding"]:checked')?.value === "yes";
+}
+
+function setWeddingEvent(isWedding){
+  document.querySelector(`input[name="isWedding"][value="${isWedding ? "yes" : "no"}"]`).checked = true;
+  $("guestField").hidden = !isWedding;
+}
+
+// The $4-per-guest minimum applies only to weddings; a leftover guest count is ignored otherwise.
+function getEventGuestCount(){
+  return isWeddingEvent() ? parseGuestCount($("guestCount").value) : { count: null, error: "" };
+}
+
 function getCurrentCalculation(){
   const people = getUnifiedStaffRows().map(row => ({
     role: row.role, name: row.name || row.role, hours: row.hours
   }));
-  const guest = parseGuestCount($("guestCount").value);
-  return calculateEventTips(getPotNumber(), getPotNumber("creditPot"), people, guest.count);
+  return calculateEventTips(getPotNumber(), getPotNumber("creditPot"), people, getEventGuestCount().count);
 }
 
 function updateResults(){
   validateCreditInput();
-  const guest = parseGuestCount($("guestCount").value);
+  $("guestField").hidden = !isWeddingEvent();
+  const guest = getEventGuestCount();
   $("guestCount").setCustomValidity(guest.error);
   $("guestCount").setAttribute("aria-invalid", String(Boolean(guest.error)));
   $("guestError").textContent = guest.error;
@@ -2245,7 +2275,7 @@ async function downloadPersonalEarnings(preferShare = true){
     status.textContent = earnings.error;
     return;
   }
-  if (!earnings || parseGuestCount($("guestCount").value).error || !validateCreditInput()) {
+  if (!earnings || getEventGuestCount().error || !validateCreditInput()) {
     status.textContent = "Enter your hours and fix any guest-count error or credit-tip error first.";
     return;
   }
@@ -2311,6 +2341,9 @@ function updatePersonalEarnings(result){
   $("personalEarningsHelp").textContent = "";
   $("personalEarningsHelp").hidden = false;
   $("downloadPersonalEarnings").hidden = false;
+  const wedding = isWeddingEvent();
+  $("withMinimumSection").hidden = !wedding;
+  $("withoutMinimumTitle").textContent = wedding ? "Without Tip Minimum" : "Your Earnings";
   if (!authorized) return;
   $("personalEarningsTitle").textContent = `${personalEarningsProfile.owner}'s Daily Earnings`;
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
@@ -2592,17 +2625,26 @@ function getTrackerShift(id){
   return earningsTrackerData?.shifts.find(shift => shift.id === id) || null;
 }
 
+function shiftIsWedding(shift){
+  return shift.wedding === true || (shift.wedding !== false && Number(shift.tipMinimum) > 0);
+}
+
 function renderTrackerDetail(shift){
   if (earningsTrackerEditingShift === shift.id) {
     const field = (name, label, value, attributes) =>
       `<label>${label}<input name="${name}" value="${escapeHtml(value)}" required ${attributes}></label>`;
+    const wedding = shiftIsWedding(shift);
     return `<form class="tracker-edit" data-id="${escapeHtml(shift.id)}">
       ${field("shiftDate", "Date", shift.shiftDate, 'type="date"')}
       ${field("hours", "Hours", shift.hours, 'type="number" step="any" min="0.01" max="24" inputmode="decimal"')}
       ${field("cashTips", "Cash tips ($)", shift.cashTips, 'type="number" step="0.01" min="0" inputmode="decimal"')}
       ${field("creditTips", "Credit tips ($)", shift.creditTips, 'type="number" step="0.01" min="0" inputmode="decimal"')}
+      <label>Wedding?<select name="wedding">
+        <option value="no"${wedding ? "" : " selected"}>No</option>
+        <option value="yes"${wedding ? " selected" : ""}>Yes</option>
+      </select></label>
       ${field("tipMinimum", "Tip minimum owed ($)", shift.tipMinimum, 'type="number" step="0.01" min="0" inputmode="decimal"')}
-      <p class="field-help tracker-edit-help">Hourly wages and estimated tax are recalculated when you save.</p>
+      <p class="field-help tracker-edit-help">The tip minimum counts only for weddings. Hourly wages and estimated tax are recalculated when you save.</p>
       <div class="tracker-actions">
         <button type="submit" class="primary">Save Changes</button>
         <button type="button" data-action="cancel-edit">Cancel</button>
@@ -2610,13 +2652,15 @@ function renderTrackerDetail(shift){
     </form>`;
   }
   const line = (label, value) => `<div class="guarantee-line"><span>${label}</span><span>${value}</span></div>`;
+  const wedding = shiftIsWedding(shift);
   return `<div class="tracker-detail">
     ${line("Venue", escapeHtml(shift.venue))}
+    ${line("Wedding", shift.wedding === null || shift.wedding === undefined ? (wedding ? "Yes" : "Not recorded") : wedding ? "Yes" : "No")}
     ${line("Hours worked", formatHours(shift.hours))}
     ${line("Hourly wages", moneyCents(shift.wages))}
     ${line("Cash tips", moneyCents(shift.cashTips))}
     ${line("Credit tips", moneyCents(shift.creditTips))}
-    ${line("Tip minimum owed", moneyCents(shift.tipMinimum))}
+    ${wedding ? line("Tip minimum owed", moneyCents(shift.tipMinimum)) : ""}
     ${line("<b>Before tax</b>", `<b>${moneyCents(shift.gross)}</b>`)}
     ${line("Estimated tax", moneyCents(shift.tax))}
     ${line("<b>After estimated tax</b>", `<b>${moneyCents(shift.net)}</b>`)}
@@ -2798,7 +2842,7 @@ async function saveMyShift(){
   if (earningsTrackerBusy || !canAccessEarningsTracker()) return;
   const result = getCurrentCalculation();
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
-  if (!earnings || earnings.error || parseGuestCount($("guestCount").value).error || !validateCreditInput()) {
+  if (!earnings || earnings.error || getEventGuestCount().error || !validateCreditInput()) {
     setSaveShiftStatus("Enter your hours and fix any guest-count or credit-tip error first.", "field-error");
     return;
   }
@@ -2814,7 +2858,7 @@ async function saveMyShift(){
   }
   const tips = personalTipBreakdown(result, personalEarningsProfile.owner);
   const shift = {
-    shiftDate, venue, hours: earnings.hours,
+    shiftDate, venue, hours: earnings.hours, wedding: isWeddingEvent(),
     cashTips: tips.cash, creditTips: tips.credit, tipMinimum: earnings.paycheckShare
   };
   const button = $("saveMyShift");
@@ -3125,6 +3169,7 @@ function getDraft(){
     pot: $("pot").value || "",
     creditPot: $("creditPot").value || "",
     guestCount: $("guestCount").value || "",
+    isWedding: isWeddingEvent() ? "yes" : "no",
     staff
   };
 }
@@ -3153,6 +3198,7 @@ function restoreDraft(){
     $("pot").value = "$" + (potDigits ? Number(potDigits).toLocaleString() : "");
     $("creditPot").value = String(draft.creditPot || "");
     $("guestCount").value = String(draft.guestCount ?? "");
+    setWeddingEvent(draft.isWedding === "yes");
 
     $("staffBody").innerHTML = "";
 
@@ -3368,6 +3414,7 @@ function hardReset(){
   $("pot").value = "$";
   $("creditPot").value = "";
   $("guestCount").value = "";
+  setWeddingEvent(false);
   $("staffBody").innerHTML = "";
   $("resultsBody").innerHTML = "";
   setElementVisible($("resultsCard"), true);
@@ -3401,8 +3448,15 @@ $("staffBody").addEventListener("input", saveDraft);
 $("staffBody").addEventListener("input", updateResults);
 $("downloadPersonalEarnings").addEventListener("click", () => downloadPersonalEarnings());
 $("downloadPersonalEarningsFallback").addEventListener("click", () => downloadPersonalEarnings(false));
+document.querySelectorAll('input[name="isWedding"]').forEach(input => {
+  input.addEventListener("change", () => {
+    updateResults();
+    saveDraft();
+  });
+});
 
 if (!restoreDraft()) {
+  setWeddingEvent(false);
   addStaff("Bartender", "", "", false);
 }
 
