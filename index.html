@@ -494,8 +494,6 @@
       color:#9ca3af;
       cursor:not-allowed;
     }
-    textarea{ width:100%; padding:12px 14px; font-size:15px; border-radius:14px; border:1px solid var(--border); outline:none; resize:vertical; min-height:84px; font-family:inherit; transition:border-color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
-    textarea:focus{ border-color:var(--green); }
 
     .row{ display:flex; gap:14px; flex-wrap:wrap; align-items:end; }
     .row > *{ flex:1; min-width:220px; }
@@ -507,23 +505,6 @@
     .status.success{ color:var(--green-dark); }
     .status.error{ color:#b91c1c; }
     .status.fade-out{ opacity:0; }
-    .send-loading{
-      display:none;
-      width:100%;
-      height:10px;
-      border-radius:999px;
-      background:#e5e7eb;
-      overflow:hidden;
-      margin-top:10px;
-    }
-    .send-loading-bar{
-      width:40%;
-      height:100%;
-      border-radius:999px;
-      background:linear-gradient(90deg,#1f9d55,#34d399);
-      animation:sendLoad 1s ease-in-out infinite;
-      transform:translateX(-100%);
-    }
     .ui-fade{
       opacity:1;
       transform:translateY(0);
@@ -536,10 +517,6 @@
       opacity:0;
       transform:translateY(8px);
       pointer-events:none;
-    }
-    @keyframes sendLoad{
-      0%{ transform:translateX(-100%); }
-      100%{ transform:translateX(250%); }
     }
 
     button{
@@ -560,11 +537,6 @@
     button:disabled{ opacity:.55; cursor:not-allowed; }
     button.primary:disabled{ background:#9ca3af; border-color:#9ca3af; }
     button.reset{ background:#eef0f3; }
-    .venue-picker{ margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fafafa; }
-    .venue-picker.ui-fade{ transition:opacity var(--motion-venue-switch) var(--motion-soft), transform var(--motion-venue-switch) var(--motion-soft); }
-    .venue-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
-    .venue-actions button{ padding:10px 14px; font-size:14px; }
-    .venue-actions .cancel{ background:#eef0f3; }
 
     table{ width:100%; border-collapse:collapse; margin-top:6px; }
     th{ text-align:left; font-size:13px; color:#374151; font-weight:800; padding-bottom:8px; }
@@ -599,6 +571,42 @@
     .earnings-highlight span{ display:block; font-size:13px; font-weight:600; }
     .earnings-highlight strong{ display:block; font-size:24px; font-weight:800; margin-top:4px; overflow-wrap:anywhere; }
     .earnings-highlight.daily-total strong{ font-size:30px; font-weight:900; }
+    .field-help.success{ color:var(--green-dark); }
+    .save-shift{ border-top:1px solid var(--border); margin-top:14px; padding-top:12px; }
+    .save-shift-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; }
+    .save-shift-row input{ flex:1 1 150px; width:auto; min-width:0; padding:10px 12px; font-size:16px; }
+    .save-shift-row button{ flex:0 1 auto; padding:10px 16px; font-size:15px; }
+    .tracker-card.is-busy{ opacity:.7; }
+    .tracker-heading{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px; }
+    .tracker-heading h2{ margin:0; font-size:20px; }
+    .tracker-period-picker{ display:flex; align-items:center; gap:8px; margin:0; font-size:13px; max-width:100%; }
+    .tracker-period-picker select{ min-width:0; max-width:100%; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:14px; font-weight:700; color:#1f2937; }
+    .tracker-period-title{ margin:16px 0 2px; font-size:15px; font-weight:900; letter-spacing:.4px; }
+    .tracker-table{ font-size:14px; }
+    .tracker-table th, .tracker-table td{ padding:10px 6px; }
+    .tracker-table tbody tr.tracker-shift{ cursor:pointer; }
+    .tracker-table tbody tr.tracker-shift:hover, .tracker-table tbody tr.selected{ background:#f3f4f6; }
+    .tracker-table tfoot th{ border-top:2px solid var(--text); font-weight:900; color:var(--text); font-size:14px; }
+    .tracker-shift-button{ background:none; border:0; border-radius:6px; padding:0; font-size:14px; font-weight:800; color:var(--text); text-decoration:underline dotted; text-underline-offset:3px; }
+    .tracker-shift-button:hover{ background:none; }
+    .tracker-empty{ color:var(--muted); }
+    .tracker-detail-row td{ padding-top:0; white-space:normal; }
+    .tracker-detail{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:8px 12px; }
+    .tracker-actions{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .tracker-actions button{ padding:10px 14px; font-size:14px; }
+    button.danger{ background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+    button.danger:hover{ background:#fee2e2; }
+    .tracker-edit{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .tracker-edit label{ margin:0; font-size:12px; }
+    .tracker-edit input{ margin-top:4px; padding:8px 10px; font-size:16px; }
+    .tracker-edit-help, .tracker-edit .tracker-actions{ grid-column:1 / -1; margin:0; }
+    .tracker-summary{ border-top:1px solid var(--border); margin-top:16px; padding-top:8px; }
+    .tracker-total{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 12px; padding:8px 0; }
+    .tracker-total span{ font-size:12px; font-weight:800; letter-spacing:.4px; color:#374151; }
+    .tracker-total strong{ font-size:20px; font-weight:900; overflow-wrap:anywhere; }
+    .tracker-total.deposit{ margin-top:8px; padding:10px 12px; border:1px solid #86efac; border-radius:12px; background:#f0fdf4; }
+    .tracker-total.deposit strong{ font-size:24px; color:#166534; }
+    .tracker-paycheck{ margin-top:12px; }
     .results-card thead th:nth-child(2),
     .results-card tbody td:nth-child(2){ text-align:center; }
 
@@ -717,10 +725,6 @@
       input{
         font-size:16px;
         padding:12px 14px;
-      }
-      textarea{
-        font-size:14px;
-        padding:10px 12px;
       }
       .actions{ gap:8px; }
       .actions button{
@@ -900,24 +904,11 @@
         </div>
       </div>
 
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <label>Notes (optional)</label>
-          <textarea id="notes" placeholder="Add any shift notes or money details..."></textarea>
-        </div>
-      </div>
-
       <div class="row actions" style="margin-top:16px;">
         <button id="addStaff">+ Staff</button>
-        <button id="calc" class="primary">Calculate &amp; Send Receipt</button>
         <button id="reset" class="reset">Reset</button>
       </div>
-      <div id="venuePicker" class="venue-picker ui-fade is-hidden" style="display:none;">
-        <label style="margin-bottom:8px;">Select Venue</label>
-        <div id="venueButtons" class="venue-actions"></div>
-      </div>
-      <div id="sendStatus" class="status"></div>
-      <div id="sendLoading" class="send-loading ui-fade is-hidden"><div class="send-loading-bar"></div></div>
+      <div id="calcStatus" class="status"></div>
     </div>
 
     <div class="card">
@@ -939,7 +930,7 @@
         <div class="cash-total">Cash Tips: <span id="cashTotal"></span></div>
         <div id="combinedResult" class="credit-result" hidden>With Credit Tips: <span id="combinedTotal"></span></div>
       </div>
-      <div id="resultsEmpty" class="results-empty ui-fade">Add staff hours to preview tipouts. Calculate &amp; Send Receipt sends the current results.</div>
+      <div id="resultsEmpty" class="results-empty ui-fade">Add staff hours to preview tipouts.</div>
       <p id="cashRounding" class="field-help" hidden></p>
       <p id="creditUnallocated" class="field-help" hidden></p>
       <table id="payoutTable" hidden>
@@ -1246,13 +1237,11 @@ const STAFF_NAMES = [
   "Toasty Tech",
   "Ty Tague"
 ];
-const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y/edit?usp=sharing";
-const RECEIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
+const BACKEND_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBnjM1-wsYdUe4tL1w7pUTorFtIH21LVXK2v9eN5r0EHF_Ws4Wp_WMogtm-NNIjTtHFw/exec";
 const DRAFT_KEY = "twobirds-tipout-draft-v1";
 const MANAGER_PIN_KEY = "twobirds-manager-auth-v1";
 const MANAGER_TOKEN_KEY = "twobirds-manager-token-v1";
 const MANAGER_TOKEN_EXP_KEY = "twobirds-manager-token-exp-v1";
-let latestReceipt = null;
 let activeNameInput = null;
 let activeNameSuggestions = [];
 let activeNameSuggestionIndex = -1;
@@ -1260,7 +1249,13 @@ let detectedVenue = "";
 let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
 let personalEarningsProfile = null;
-let sendingReceipt = false;
+let earningsTrackerEnabled = false;
+let earningsTrackerData = null;
+let earningsTrackerPeriod = "";
+let earningsTrackerSelectedShift = "";
+let earningsTrackerEditingShift = "";
+let earningsTrackerBusy = false;
+let earningsTrackerLoad = null;
 let toastTimer = null;
 let statusFadeTimer = null;
 let statusClearTimer = null;
@@ -1268,7 +1263,6 @@ let activeVenueBgLayer = "a";
 const VISIBILITY_TRANSITION_MS = 280;
 const VENUE_SWITCH_TRANSITION_MS = 1000;
 const VENUE_SELECT_TRANSITION_MS = VENUE_SWITCH_TRANSITION_MS;
-const VENUE_PICKER_TRANSITION_MS = VENUE_SWITCH_TRANSITION_MS;
 const MIN_LOADING_VISIBLE_MS = 520;
 const visibilityTimers = new WeakMap();
 const loadingStateMap = new WeakMap();
@@ -1858,6 +1852,7 @@ function initManagerGate(){
       authenticatedManagerName = auth.managerName;
       authenticatedManagerToken = auth.authToken;
       personalEarningsProfile = auth.personalEarningsProfile;
+      setEarningsTrackerAccess(auth.earningsTracker);
       try {
         sessionStorage.setItem(MANAGER_PIN_KEY, auth.managerName);
         sessionStorage.setItem(MANAGER_TOKEN_KEY, auth.authToken);
@@ -2030,7 +2025,7 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
     previousRole = roleSelect.value;
     applyRoleBehavior();
     sortStaffRowsByRole();
-    markUncalculated();
+    updateResults();
     saveDraft();
   });
 
@@ -2043,13 +2038,13 @@ function addStaff(role="Bartender", name="", hours="", focusName=true){
   tr.querySelector("button").onclick = () => {
     tr.remove();
     sortStaffRowsByRole();
-    markUncalculated();
+    updateResults();
     saveDraft();
   };
   $("staffBody").appendChild(tr);
   sortStaffRowsByRole();
   if (focusName) nameInput.focus();
-  markUncalculated();
+  updateResults();
   saveDraft();
 }
 
@@ -2079,11 +2074,6 @@ function showToast(message){
   toastTimer = setTimeout(() => {
     toast.classList.remove("show");
   }, 1500);
-}
-
-function markUncalculated(){
-  latestReceipt = null;
-  updateResults();
 }
 
 function getCurrentCalculation(){
@@ -2140,6 +2130,7 @@ function updateResults(){
   $("paycheckRemainder").hidden = remainder === 0;
   $("paycheckRemainder").textContent = `Time-card rounding adjustment: ${moneyRate(remainder)}`;
   updatePersonalEarnings(result);
+  syncEarningsTracker();
 }
 
 function readPersonalEarningsProfile(value, managerName){
@@ -2370,6 +2361,493 @@ function updatePersonalEarnings(result){
   });
   $("personalTax").textContent = moneyRate(earnings.tax);
   $("personalNet").textContent = moneyRate(earnings.net);
+}
+
+const EARNINGS_TRACKER_OWNER = "Will Schreiner";
+const BUSINESS_DAY_ROLLOVER_HOUR = 3;
+let earningsTrackerGeneration = 0;
+let earningsTrackerLoadError = "";
+
+function readEarningsTrackerAccess(data, managerName, profile){
+  return data?.earningsTracker === true && profile?.owner === EARNINGS_TRACKER_OWNER &&
+    String(managerName || "").trim().toLowerCase() === EARNINGS_TRACKER_OWNER.toLowerCase();
+}
+
+function setEarningsTrackerAccess(enabled){
+  clearEarningsTracker();
+  earningsTrackerEnabled = Boolean(enabled);
+}
+
+function canAccessEarningsTracker(){
+  return earningsTrackerEnabled && canAccessPersonalEarnings() &&
+    personalEarningsProfile.owner === EARNINGS_TRACKER_OWNER;
+}
+
+function clearEarningsTracker(){
+  earningsTrackerGeneration++;
+  earningsTrackerEnabled = false;
+  earningsTrackerData = null;
+  earningsTrackerPeriod = "";
+  earningsTrackerSelectedShift = "";
+  earningsTrackerEditingShift = "";
+  earningsTrackerBusy = false;
+  earningsTrackerLoad = null;
+  earningsTrackerLoadError = "";
+  $("earningsTracker")?.remove();
+  $("saveShiftControls")?.remove();
+}
+
+function businessDateISO(now = new Date()){
+  const date = new Date(now.getTime());
+  if (date.getHours() < BUSINESS_DAY_ROLLOVER_HOUR) date.setDate(date.getDate() - 1);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function isoToDayNumber(iso){
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+  if (!match) return null;
+  const time = Date.UTC(+match[1], +match[2] - 1, +match[3]);
+  return new Date(time).toISOString().slice(0, 10) === match[0] ? Math.round(time / 86400000) : null;
+}
+
+function dayNumberToISO(day){
+  return new Date(day * 86400000).toISOString().slice(0, 10);
+}
+
+function payPeriodStartFor(iso, anchor, days){
+  const anchorDay = isoToDayNumber(anchor);
+  return dayNumberToISO(anchorDay + Math.floor((isoToDayNumber(iso) - anchorDay) / days) * days);
+}
+
+function formatShortDate(iso){
+  const day = isoToDayNumber(iso);
+  return new Date(day * 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function payPeriodLabel(start, days){
+  return `${formatShortDate(start)} – ${formatShortDate(dayNumberToISO(isoToDayNumber(start) + days - 1))}`;
+}
+
+function moneyCents(amount){
+  const cents = Math.round(Number(amount || 0) * 100);
+  const text = "$" + (Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return cents < 0 ? `−${text}` : text;
+}
+
+function formatHours(hours){
+  return (Math.round(Number(hours || 0) * 100) / 100).toFixed(2).replace(/0$/, "");
+}
+
+function personalTipBreakdown(result, owner){
+  const ownEntries = result.cash.entries.map((entry, index) => ({ ...entry, index }))
+    .filter(entry => entry.name.trim().toLowerCase() === owner.trim().toLowerCase());
+  return {
+    cash: Math.round(ownEntries.reduce((sum, entry) => sum + entry.tipout, 0) * 100) / 100,
+    credit: Math.round(ownEntries.reduce((sum, entry) => sum + result.credit.entries[entry.index].tipout, 0) * 100) / 100
+  };
+}
+
+function setTrackerStatus(message, type = ""){
+  const status = $("trackerStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.className = `field-help ${type}`.trim();
+}
+
+function setSaveShiftStatus(message, type = ""){
+  const status = $("saveShiftStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.className = `field-help ${type}`.trim();
+}
+
+async function trackerRequest(action, extra = {}){
+  const generation = earningsTrackerGeneration;
+  const data = await postToAppsScript(BACKEND_ENDPOINT, {
+    action,
+    managerName: authenticatedManagerName,
+    authToken: authenticatedManagerToken,
+    ...extra
+  }, { timeoutMs: 30000 });
+  if (generation !== earningsTrackerGeneration || !canAccessEarningsTracker()) {
+    const stale = new Error("The tracker was closed.");
+    stale.stale = true;
+    throw stale;
+  }
+  earningsTrackerData = {
+    anchor: String(data.payPeriodAnchor || ""),
+    days: Number(data.payPeriodDays) || 14,
+    shifts: Array.isArray(data.shifts) ? data.shifts : [],
+    paychecks: data.paychecks && typeof data.paychecks === "object" ? data.paychecks : {}
+  };
+  earningsTrackerLoadError = "";
+  return data;
+}
+
+function handleTrackerError(error, show){
+  if (error?.stale) return;
+  const message = String(error?.message || "").replace(/^Error:\s*/, "") || "Something went wrong. Please try again.";
+  if (/invalid auth|session expired/i.test(message)) {
+    clearManagerSessionStorage();
+    showManagerPinCard(false);
+    return;
+  }
+  show(message);
+}
+
+async function loadEarningsTracker(){
+  if (earningsTrackerLoad) return earningsTrackerLoad;
+  earningsTrackerLoadError = "";
+  setTrackerStatus("Loading your saved shifts...");
+  renderEarningsTracker();
+  earningsTrackerLoad = (async () => {
+    try {
+      await trackerRequest("trackerList");
+      setTrackerStatus("");
+    } catch (error) {
+      handleTrackerError(error, message => {
+        earningsTrackerLoadError = message;
+        setTrackerStatus(`Could not load your saved shifts. ${message}`, "field-error");
+      });
+    } finally {
+      earningsTrackerLoad = null;
+      renderEarningsTracker();
+    }
+  })();
+  return earningsTrackerLoad;
+}
+
+function syncEarningsTracker(){
+  if (!canAccessEarningsTracker()) {
+    $("earningsTracker")?.remove();
+    $("saveShiftControls")?.remove();
+    return;
+  }
+  ensureSaveShiftControls();
+  setSaveShiftStatus("");
+  if (!$("earningsTracker")) {
+    ensureEarningsTrackerCard();
+    if (earningsTrackerData) renderEarningsTracker();
+  }
+  if (!earningsTrackerData && !earningsTrackerLoad && !earningsTrackerLoadError) loadEarningsTracker();
+}
+
+function ensureSaveShiftControls(){
+  if ($("saveShiftControls")) return;
+  const wrap = document.createElement("div");
+  wrap.id = "saveShiftControls";
+  wrap.className = "save-shift";
+  wrap.innerHTML = `
+    <label for="saveShiftDate">Shift date</label>
+    <div class="save-shift-row">
+      <input id="saveShiftDate" type="date">
+      <button id="saveMyShift" type="button" class="primary">Save My Shift</button>
+    </div>
+    <p id="saveShiftStatus" class="field-help" role="status"></p>`;
+  $("personalDownloadStatus").after(wrap);
+  $("saveShiftDate").value = businessDateISO();
+  $("saveMyShift").addEventListener("click", saveMyShift);
+}
+
+function ensureEarningsTrackerCard(){
+  const card = document.createElement("section");
+  card.id = "earningsTracker";
+  card.className = "card tracker-card";
+  card.setAttribute("aria-labelledby", "trackerTitle");
+  card.innerHTML = `
+    <div class="tracker-heading">
+      <h2 id="trackerTitle">My Pay Periods</h2>
+      <label class="tracker-period-picker">Pay period
+        <select id="trackerPeriodSelect" disabled></select>
+      </label>
+    </div>
+    <h3 id="trackerPeriodTitle" class="tracker-period-title"></h3>
+    <p id="trackerPeriodNote" class="field-help"></p>
+    <div id="trackerShifts" aria-live="polite"></div>
+    <div id="trackerSummary" class="tracker-summary"></div>
+    <p id="trackerStatus" class="field-help" role="status"></p>`;
+  $("resultsCard").after(card);
+  $("trackerPeriodSelect").addEventListener("change", event => {
+    earningsTrackerPeriod = event.target.value;
+    earningsTrackerSelectedShift = "";
+    earningsTrackerEditingShift = "";
+    setTrackerStatus("");
+    renderEarningsTracker();
+  });
+  card.addEventListener("click", handleTrackerClick);
+  card.addEventListener("submit", handleTrackerSubmit);
+}
+
+function getTrackerPeriods(){
+  const data = earningsTrackerData;
+  const current = payPeriodStartFor(businessDateISO(), data.anchor, data.days);
+  const days = [current, ...data.shifts.map(shift => payPeriodStartFor(shift.shiftDate, data.anchor, data.days))]
+    .map(isoToDayNumber);
+  const periods = [];
+  for (let day = Math.max(...days); day >= Math.min(...days); day -= data.days) periods.push(dayNumberToISO(day));
+  return { current, periods };
+}
+
+function getTrackerShift(id){
+  return earningsTrackerData?.shifts.find(shift => shift.id === id) || null;
+}
+
+function renderTrackerDetail(shift){
+  if (earningsTrackerEditingShift === shift.id) {
+    const field = (name, label, value, attributes) =>
+      `<label>${label}<input name="${name}" value="${escapeHtml(value)}" required ${attributes}></label>`;
+    return `<form class="tracker-edit" data-id="${escapeHtml(shift.id)}">
+      ${field("shiftDate", "Date", shift.shiftDate, 'type="date"')}
+      ${field("hours", "Hours", shift.hours, 'type="number" step="any" min="0.01" max="24" inputmode="decimal"')}
+      ${field("cashTips", "Cash tips ($)", shift.cashTips, 'type="number" step="0.01" min="0" inputmode="decimal"')}
+      ${field("creditTips", "Credit tips ($)", shift.creditTips, 'type="number" step="0.01" min="0" inputmode="decimal"')}
+      ${field("tipMinimum", "Tip minimum owed ($)", shift.tipMinimum, 'type="number" step="0.01" min="0" inputmode="decimal"')}
+      <p class="field-help tracker-edit-help">Hourly wages and estimated tax are recalculated when you save.</p>
+      <div class="tracker-actions">
+        <button type="submit" class="primary">Save Changes</button>
+        <button type="button" data-action="cancel-edit">Cancel</button>
+      </div>
+    </form>`;
+  }
+  const line = (label, value) => `<div class="guarantee-line"><span>${label}</span><span>${value}</span></div>`;
+  return `<div class="tracker-detail">
+    ${line("Venue", escapeHtml(shift.venue))}
+    ${line("Hours worked", formatHours(shift.hours))}
+    ${line("Hourly wages", moneyCents(shift.wages))}
+    ${line("Cash tips", moneyCents(shift.cashTips))}
+    ${line("Credit tips", moneyCents(shift.creditTips))}
+    ${line("Tip minimum owed", moneyCents(shift.tipMinimum))}
+    ${line("<b>Before tax</b>", `<b>${moneyCents(shift.gross)}</b>`)}
+    ${line("Estimated tax", moneyCents(shift.tax))}
+    ${line("<b>After estimated tax</b>", `<b>${moneyCents(shift.net)}</b>`)}
+    <div class="tracker-actions">
+      <button type="button" data-action="edit" data-id="${escapeHtml(shift.id)}">Edit</button>
+      <button type="button" class="danger" data-action="delete" data-id="${escapeHtml(shift.id)}">Delete</button>
+    </div>
+  </div>`;
+}
+
+function renderEarningsTracker(){
+  if (!$("earningsTracker")) return;
+  const select = $("trackerPeriodSelect");
+  const data = earningsTrackerData;
+  if (!data) {
+    select.innerHTML = "";
+    select.disabled = true;
+    $("trackerPeriodTitle").textContent = "";
+    $("trackerPeriodNote").textContent = "";
+    $("trackerSummary").innerHTML = "";
+    $("trackerShifts").innerHTML = earningsTrackerLoadError
+      ? '<button type="button" data-action="retry">Try Again</button>' : "";
+    return;
+  }
+
+  const { current, periods } = getTrackerPeriods();
+  if (!periods.includes(earningsTrackerPeriod)) earningsTrackerPeriod = current;
+  const start = earningsTrackerPeriod;
+  const end = dayNumberToISO(isoToDayNumber(start) + data.days - 1);
+  select.innerHTML = periods.map(period =>
+    `<option value="${period}">${payPeriodLabel(period, data.days)}${period === current ? " (current)" : ""}</option>`
+  ).join("");
+  select.value = start;
+  select.disabled = false;
+  $("trackerPeriodTitle").textContent = `PAY PERIOD: ${payPeriodLabel(start, data.days).toUpperCase()}`;
+  $("trackerPeriodNote").textContent = start === current ? "Current pay period"
+    : start < current ? "Previous pay period" : "Upcoming pay period";
+
+  const shifts = data.shifts
+    .filter(shift => shift.shiftDate >= start && shift.shiftDate <= end)
+    .sort((a, b) => a.shiftDate.localeCompare(b.shiftDate) || String(a.savedAt).localeCompare(String(b.savedAt)));
+  const sumCents = key => shifts.reduce((sum, shift) => sum + Math.round(Number(shift[key] || 0) * 100), 0);
+  const hours = shifts.reduce((sum, shift) => sum + Number(shift.hours || 0), 0);
+  const gross = sumCents("gross") / 100;
+  const net = sumCents("net") / 100;
+  const cash = sumCents("cashTips") / 100;
+  const deposit = (sumCents("net") - sumCents("cashTips")) / 100;
+
+  const rows = shifts.map(shift => {
+    const selected = shift.id === earningsTrackerSelectedShift;
+    const id = escapeHtml(shift.id);
+    return `<tr class="tracker-shift${selected ? " selected" : ""}" data-action="toggle" data-id="${id}">
+        <td><button type="button" class="tracker-shift-button" data-action="toggle" data-id="${id}" aria-expanded="${selected}">${formatShortDate(shift.shiftDate)}</button></td>
+        <td class="right">${formatHours(shift.hours)}</td>
+        <td class="right">${moneyCents(shift.gross)}</td>
+        <td class="right">${moneyCents(shift.net)}</td>
+      </tr>${selected ? `<tr class="tracker-detail-row"><td colspan="4">${renderTrackerDetail(shift)}</td></tr>` : ""}`;
+  }).join("");
+  $("trackerShifts").innerHTML = `<table class="tracker-table">
+    <thead><tr><th>Date</th><th class="right">Hours</th><th class="right">Before Tax</th><th class="right">After Tax</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4" class="tracker-empty">No shifts saved in this pay period yet.</td></tr>'}</tbody>
+    <tfoot><tr><th>TOTAL</th><th class="right">${formatHours(hours)}</th><th class="right">${moneyCents(gross)}</th><th class="right">${moneyCents(net)}</th></tr></tfoot>
+  </table>`;
+
+  const actual = data.paychecks[start];
+  const hasActual = actual !== undefined && actual !== null && Number.isFinite(Number(actual));
+  const difference = hasActual ? Math.round((Number(actual) - deposit) * 100) / 100 : 0;
+  const comparison = !hasActual ? ""
+    : difference === 0 ? "Your actual paycheck matches the estimate."
+    : `Your actual paycheck was ${moneyCents(Math.abs(difference))} ${difference > 0 ? "more" : "less"} than estimated.`;
+  const total = (label, value, className = "") =>
+    `<div class="tracker-total ${className}"><span>${label}</span><strong>${value}</strong></div>`;
+  $("trackerSummary").innerHTML = `
+    ${total("TOTAL HOURS WORKED", formatHours(hours))}
+    ${total("TOTAL EARNINGS BEFORE TAX", moneyCents(gross))}
+    ${total("TOTAL EARNINGS AFTER ESTIMATED TAX", moneyCents(net))}
+    <div class="guarantee-line"><span>Cash tips already received</span><span>${moneyCents(-cash)}</span></div>
+    ${total("ESTIMATED PAYCHECK DEPOSIT", moneyCents(deposit), "deposit")}
+    <p class="field-help">After-tax earnings minus the cash tips you already took home. This is an estimate, not an exact payroll calculation.</p>
+    <form class="tracker-paycheck" data-period="${start}">
+      <label for="trackerActualPaycheck">Actual paycheck (optional)</label>
+      <div class="save-shift-row">
+        <input id="trackerActualPaycheck" name="actualPaycheck" type="number" step="0.01" min="0" inputmode="decimal"
+          placeholder="$0.00" value="${hasActual ? Number(actual).toFixed(2) : ""}">
+        <button type="submit">Save</button>
+      </div>
+      <p id="trackerPaycheckCompare" class="field-help">${comparison}</p>
+    </form>`;
+}
+
+async function runTrackerAction(work){
+  if (earningsTrackerBusy) return;
+  earningsTrackerBusy = true;
+  $("earningsTracker")?.classList.add("is-busy");
+  try {
+    await work();
+  } catch (error) {
+    handleTrackerError(error, message => setTrackerStatus(message, "field-error"));
+  } finally {
+    earningsTrackerBusy = false;
+    $("earningsTracker")?.classList.remove("is-busy");
+  }
+}
+
+function handleTrackerClick(event){
+  const target = event.target.closest("[data-action]");
+  if (!target || earningsTrackerBusy) return;
+  const action = target.dataset.action;
+  const id = target.dataset.id || "";
+  if (action === "toggle") {
+    earningsTrackerSelectedShift = earningsTrackerSelectedShift === id ? "" : id;
+    earningsTrackerEditingShift = "";
+    setTrackerStatus("");
+    renderEarningsTracker();
+  } else if (action === "edit") {
+    earningsTrackerEditingShift = id;
+    renderEarningsTracker();
+    $("earningsTracker").querySelector(".tracker-edit input")?.focus();
+  } else if (action === "cancel-edit") {
+    earningsTrackerEditingShift = "";
+    renderEarningsTracker();
+  } else if (action === "retry") {
+    loadEarningsTracker();
+  } else if (action === "delete") {
+    const shift = getTrackerShift(id);
+    if (!shift || !window.confirm(`Delete your ${formatShortDate(shift.shiftDate)} shift at ${shift.venue}? This cannot be undone.`)) return;
+    runTrackerAction(async () => {
+      setTrackerStatus("Deleting shift...");
+      await trackerRequest("trackerDeleteShift", { id });
+      earningsTrackerSelectedShift = "";
+      earningsTrackerEditingShift = "";
+      renderEarningsTracker();
+      setTrackerStatus("Shift deleted.");
+    });
+  }
+}
+
+function handleTrackerSubmit(event){
+  const form = event.target;
+  event.preventDefault();
+  if (form.matches(".tracker-edit")) {
+    if (!form.reportValidity()) return;
+    const id = form.dataset.id;
+    const shift = getTrackerShift(id);
+    if (!shift) return;
+    const values = Object.fromEntries(new FormData(form));
+    runTrackerAction(async () => {
+      setTrackerStatus("Saving changes...");
+      const data = await trackerRequest("trackerUpdateShift", {
+        id,
+        shift: { ...values, venue: shift.venue }
+      });
+      if (data.duplicate) {
+        setTrackerStatus(`You already saved a shift for ${formatShortDate(values.shiftDate)} at ${shift.venue}. Delete one of them first.`, "field-error");
+        return;
+      }
+      earningsTrackerEditingShift = "";
+      earningsTrackerSelectedShift = id;
+      earningsTrackerPeriod = payPeriodStartFor(values.shiftDate, earningsTrackerData.anchor, earningsTrackerData.days);
+      renderEarningsTracker();
+      setTrackerStatus("Shift updated.");
+    });
+  } else if (form.matches(".tracker-paycheck")) {
+    if (!form.reportValidity()) return;
+    const value = form.elements.actualPaycheck.value.trim();
+    runTrackerAction(async () => {
+      setTrackerStatus("Saving actual paycheck...");
+      await trackerRequest("trackerSetPaycheck", {
+        periodStart: form.dataset.period,
+        actualPaycheck: value === "" ? null : Number(value)
+      });
+      renderEarningsTracker();
+      setTrackerStatus(value === "" ? "Actual paycheck cleared." : "Actual paycheck saved.");
+    });
+  }
+}
+
+async function saveMyShift(){
+  if (earningsTrackerBusy || !canAccessEarningsTracker()) return;
+  const result = getCurrentCalculation();
+  const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
+  if (!earnings || earnings.error || parseGuestCount($("guestCount").value).error || !validateCreditInput()) {
+    setSaveShiftStatus("Enter your hours and fix any guest-count or credit-tip error first.", "field-error");
+    return;
+  }
+  const venue = getSelectedVenueValue();
+  if (!venue) {
+    setSaveShiftStatus("Select a venue before saving your shift.", "field-error");
+    return;
+  }
+  const shiftDate = $("saveShiftDate").value;
+  if (isoToDayNumber(shiftDate) === null) {
+    setSaveShiftStatus("Choose the date you worked.", "field-error");
+    return;
+  }
+  const tips = personalTipBreakdown(result, personalEarningsProfile.owner);
+  const shift = {
+    shiftDate, venue, hours: earnings.hours,
+    cashTips: tips.cash, creditTips: tips.credit, tipMinimum: earnings.paycheckShare
+  };
+  const button = $("saveMyShift");
+  earningsTrackerBusy = true;
+  button.disabled = true;
+  setSaveShiftStatus("Saving your shift...");
+  try {
+    let data = await trackerRequest("trackerSaveShift", { shift });
+    if (data.duplicate) {
+      const replace = window.confirm(
+        `You already saved a shift for ${formatShortDate(shiftDate)} at ${venue}. Replace it with these numbers?`
+      );
+      if (!replace) {
+        renderEarningsTracker();
+        setSaveShiftStatus("Not saved. Your earlier shift was kept.");
+        return;
+      }
+      data = await trackerRequest("trackerSaveShift", { shift, replace: true });
+    }
+    earningsTrackerPeriod = payPeriodStartFor(shiftDate, earningsTrackerData.anchor, earningsTrackerData.days);
+    earningsTrackerSelectedShift = data.saved?.id || "";
+    earningsTrackerEditingShift = "";
+    renderEarningsTracker();
+    setTrackerStatus("");
+    setSaveShiftStatus(data.replaced
+      ? `Updated your ${formatShortDate(shiftDate)} shift: ${moneyCents(data.saved.gross)} before tax.`
+      : `Saved your ${formatShortDate(shiftDate)} shift: ${moneyCents(data.saved.gross)} before tax.`, "success");
+  } catch (error) {
+    handleTrackerError(error, message => setSaveShiftStatus(message, "field-error"));
+  } finally {
+    earningsTrackerBusy = false;
+    if ($("saveMyShift")) $("saveMyShift").disabled = false;
+  }
 }
 
 function enforceMoneyInput(input){
@@ -2636,65 +3114,6 @@ function normalizeName(value){
     .trim();
 }
 
-function isValidTypedName(value){
-  const letters = String(value || "").replace(/[^A-Za-z]/g, "");
-  return letters.length >= 2;
-}
-
-function getMissingCalculationMessage(){
-  const missing = [];
-  const pushMissing = item => {
-    const text = String(item || "").trim();
-    if (!text || missing.includes(text)) return;
-    missing.push(text);
-  };
-
-  const guest = parseGuestCount($("guestCount").value);
-  if (guest.error) return guest.error;
-  if (!validateCreditInput()) return $("creditError").textContent;
-  if (getPotNumber() + getPotNumber("creditPot") <= 0 && guest.count === null) pushMissing("tip pot");
-
-  const staffRows = getUnifiedStaffRows();
-  if (!staffRows.length) {
-    pushMissing("staff");
-  } else {
-    const hasShiftManager = staffRows.some(row => row.role === "Shift Manager");
-    if (!hasShiftManager) pushMissing("Shift Manager");
-
-    let hasMissingName = false;
-    let hasMissingHours = false;
-    let hasInvalidName = false;
-
-    staffRows.forEach((row, idx) => {
-      const role = ["Shift Manager", "Bartender"].includes(row.role) ? row.role : "Bartender";
-      const cleanedName = normalizeName(row.inputs[0]?.value || row.name || "");
-
-      if (!cleanedName) {
-        hasMissingName = true;
-      } else if (!isValidTypedName(cleanedName)) {
-        hasInvalidName = true;
-      }
-
-      const hoursValue = +String(row.inputs[1]?.value || "").trim() || 0;
-      if (hoursValue <= 0) {
-        hasMissingHours = true;
-      }
-    });
-
-    if (hasMissingName) pushMissing("staff names");
-    if (hasInvalidName) pushMissing("valid staff names");
-    if (hasMissingHours) pushMissing("staff hours");
-
-    const hasPayoutRow = staffRows.some(row => (+row.inputs[1]?.value || 0) > 0);
-    if (!hasPayoutRow) pushMissing("staff hours");
-    if (!staffRows.some(row => ["Shift Manager", "Bartender"].includes(row.role) && Number.isFinite(row.hours) && row.hours > 0)) {
-      pushMissing("bartender hours");
-    }
-  }
-
-  return missing.length ? `Missing: ${missing.join(" & ")}.` : "";
-}
-
 function getDraft(){
   const staff = getUnifiedStaffRows().map(row => ({
     role: row.role,
@@ -2706,7 +3125,6 @@ function getDraft(){
     pot: $("pot").value || "",
     creditPot: $("creditPot").value || "",
     guestCount: $("guestCount").value || "",
-    notes: $("notes").value || "",
     staff
   };
 }
@@ -2735,7 +3153,6 @@ function restoreDraft(){
     $("pot").value = "$" + (potDigits ? Number(potDigits).toLocaleString() : "");
     $("creditPot").value = String(draft.creditPot || "");
     $("guestCount").value = String(draft.guestCount ?? "");
-    $("notes").value = String(draft.notes || "");
 
     $("staffBody").innerHTML = "";
 
@@ -2774,7 +3191,7 @@ function todayLocalISO(){
 }
 
 function setStatus(msg, type="", options = {}){
-  const el = $("sendStatus");
+  const el = $("calcStatus");
   if (statusFadeTimer) {
     clearTimeout(statusFadeTimer);
     statusFadeTimer = null;
@@ -2827,52 +3244,6 @@ function setStatus(msg, type="", options = {}){
     el.className = "status";
   }, fadeDelayMs + fadeDurationMs + 40);
 }
-
-function setSendLoading(isLoading){
-  const bar = $("sendLoading");
-  if (!bar) return;
-  setLoadingVisibleWithMinimum(bar, isLoading);
-}
-
-function hideVenuePicker(){
-  const picker = $("venuePicker");
-  const buttons = $("venueButtons");
-  buttons.innerHTML = "";
-  setElementVisible(picker, false, "block", VENUE_PICKER_TRANSITION_MS);
-}
-
-function pickVenue(){
-  return new Promise(resolve => {
-    const picker = $("venuePicker");
-    const buttons = $("venueButtons");
-    buttons.innerHTML = "";
-
-    VENUES.forEach(venue => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = venue;
-      btn.onclick = () => {
-        hideVenuePicker();
-        resolve(venue);
-      };
-      buttons.appendChild(btn);
-    });
-
-    const cancel = document.createElement("button");
-    cancel.type = "button";
-    cancel.className = "cancel";
-    cancel.textContent = "Cancel";
-    cancel.onclick = () => {
-      hideVenuePicker();
-      resolve(null);
-    };
-    buttons.appendChild(cancel);
-
-    setElementVisible(picker, true, "block", VENUE_PICKER_TRANSITION_MS);
-  });
-}
-
-
 
 async function postToAppsScript(endpoint, payload, { timeoutMs = 0, signal } = {}){
   const controller = new AbortController();
@@ -2937,7 +3308,7 @@ async function authenticateManagerPin(pin){
     throw new Error("Enter a valid 4-digit PIN.");
   }
 
-  const data = await postToAppsScript(RECEIPT_ENDPOINT, {
+  const data = await postToAppsScript(BACKEND_ENDPOINT, {
     action: "authManagerPin",
     pin: cleanPin
   }, { timeoutMs: 20000 });
@@ -2949,9 +3320,11 @@ async function authenticateManagerPin(pin){
     throw new Error("Authentication response was incomplete.");
   }
 
+  const profile = readPersonalEarningsProfile(data.personalEarningsProfile, managerName);
   return {
     managerName, authToken, expiresAt,
-    personalEarningsProfile: readPersonalEarningsProfile(data.personalEarningsProfile, managerName)
+    personalEarningsProfile: profile,
+    earningsTracker: readEarningsTrackerAccess(data, managerName, profile)
   };
 }
 
@@ -2961,7 +3334,7 @@ async function validateManagerSession(name, token){
   if (!managerName || !authToken) return false;
 
   try {
-    const data = await postToAppsScript(RECEIPT_ENDPOINT, {
+    const data = await postToAppsScript(BACKEND_ENDPOINT, {
       action: "validateManagerSession",
       managerName,
       authToken
@@ -2969,9 +3342,11 @@ async function validateManagerSession(name, token){
     personalEarningsProfile = data.valid
       ? readPersonalEarningsProfile(data.personalEarningsProfile, managerName)
       : null;
+    setEarningsTrackerAccess(data.valid && readEarningsTrackerAccess(data, managerName, personalEarningsProfile));
     return !!data.valid;
   } catch {
     personalEarningsProfile = null;
+    setEarningsTrackerAccess(false);
     return false;
   }
 }
@@ -2980,6 +3355,7 @@ function clearManagerSessionStorage(){
   authenticatedManagerName = "";
   authenticatedManagerToken = "";
   personalEarningsProfile = null;
+  clearEarningsTracker();
   updatePersonalEarnings(getCurrentCalculation());
   try {
     sessionStorage.removeItem(MANAGER_PIN_KEY);
@@ -2988,98 +3364,14 @@ function clearManagerSessionStorage(){
   } catch {}
 }
 
-async function sendReceipt(){
-  if (sendingReceipt) return;
-  if (!latestReceipt){
-    showToast("Calculate first.");
-    setStatus("Calculate first.", "error");
-    return;
-  }
-  setStatus("");
-  setSendLoading(false);
-  hideVenuePicker();
-
-  let venue = detectedVenue;
-  if (!VENUES.includes(String(venue || "").trim())) {
-    venue = getSelectedVenueValue();
-  }
-  if (!venue) {
-    setStatus("Please choose your venue.", "error");
-    venue = await pickVenue();
-    if (venue) {
-      detectedVenue = venue;
-      setVenueBadge(`Venue: ${detectedVenue}`);
-      setVenuePhoto(detectedVenue);
-    }
-  }
-  if (!venue){
-    setStatus("Send canceled or invalid venue selection.", "error");
-    return;
-  }
-
-  const managerName = String(authenticatedManagerName || "").trim();
-  const authToken = String(authenticatedManagerToken || "").trim();
-  if (!managerName || !authToken) {
-    setStatus("Manager session expired. Please re-enter your PIN.", "error");
-    clearManagerSessionStorage();
-    showManagerPinCard(false);
-    return;
-  }
-
-  const receipt = {
-    ...latestReceipt,
-    date: todayLocalISO(),
-    venue,
-    notes: ($("notes").value || "").trim(),
-    submittedAt: new Date().toISOString(),
-    managerName,
-    authToken
-  };
-
-  if (!RECEIPT_ENDPOINT){
-    setStatus("Receipt is ready. Backend needs Google Apps Script Web App URL ending in /exec.", "error");
-    return;
-  }
-
-  if (!RECEIPT_ENDPOINT.includes("/exec")){
-    setStatus("Configured backend URL is invalid. Use the Apps Script Web App /exec URL.", "error");
-    return;
-  }
-
-  try {
-    sendingReceipt = true;
-    setSendLoading(true);
-    setStatus("Sending receipt...", "");
-    const response = await postToAppsScript(RECEIPT_ENDPOINT, receipt);
-    if (Number(response.replacedRows || 0) > 0){
-      setStatus("Receipt updated and sent!", "success");
-    } else {
-      setStatus("Receipt sent!", "success");
-    }
-  } catch (err) {
-    const msg = err && err.message ? err.message : "Send failed. Verify Apps Script deployment and access to the shared sheet.";
-    if (/session expired|invalid auth|unauthorized/i.test(msg)) {
-      clearManagerSessionStorage();
-      showManagerPinCard(false);
-    }
-    setStatus(msg, "error");
-  } finally {
-    sendingReceipt = false;
-    setSendLoading(false);
-  }
-}
-
 function hardReset(){
   $("pot").value = "$";
   $("creditPot").value = "";
   $("guestCount").value = "";
-  $("notes").value = "";
   $("staffBody").innerHTML = "";
   $("resultsBody").innerHTML = "";
   setElementVisible($("resultsCard"), true);
   setElementVisible($("resultsEmpty"), true);
-  latestReceipt = null;
-  setSendLoading(false);
   setStatus("");
   clearDraft();
   addStaff("Bartender", "", "", false);
@@ -3100,14 +3392,13 @@ window.addEventListener("load", () => {
   setTimeout(scrollToTop, 0);
 });
 $("pot").addEventListener("input", saveDraft);
-$("notes").addEventListener("input", saveDraft);
-$("pot").addEventListener("input", markUncalculated);
+$("pot").addEventListener("input", updateResults);
 ["creditPot", "guestCount"].forEach(id => {
-  $(id).addEventListener("input", markUncalculated);
+  $(id).addEventListener("input", updateResults);
   $(id).addEventListener("input", saveDraft);
 });
 $("staffBody").addEventListener("input", saveDraft);
-$("staffBody").addEventListener("input", markUncalculated);
+$("staffBody").addEventListener("input", updateResults);
 $("downloadPersonalEarnings").addEventListener("click", () => downloadPersonalEarnings());
 $("downloadPersonalEarningsFallback").addEventListener("click", () => downloadPersonalEarnings(false));
 
@@ -3129,53 +3420,6 @@ updateResults();
 
 $("addStaff").onclick = () => addStaff("Bartender", "", "", false);
 $("reset").onclick = hardReset;
-
-$("calc").onclick = () => {
-  const missingMessage = getMissingCalculationMessage();
-  if (missingMessage) {
-    showToast(missingMessage);
-    setStatus(missingMessage, "error", { autoHideMs: 3200 });
-    return;
-  }
-
-  setStatus("");
-  if (getUnifiedStaffRows().filter(row => row.role === "Shift Manager").length > 1) {
-    setStatus("Only one Shift Manager is allowed.", "error");
-    return;
-  }
-
-  updateResults();
-  const result = getCurrentCalculation();
-  const hasCredit = /\d/.test($("creditPot").value);
-  latestReceipt = {
-    totalPot: getPotNumber(),
-    cashRoundingDifference: result.cashRoundingDifference,
-    creditUnallocated: result.creditUnallocated,
-    entries: result.cash.entries.map((entry, index) => ({
-      ...entry,
-      ...(hasCredit ? {
-        creditRate: result.credit.entries[index].rate,
-        creditTipout: result.credit.entries[index].tipout,
-        combinedTipout: entry.tipout + result.credit.entries[index].tipout
-      } : {})
-    })),
-    ...(hasCredit ? { creditPot: getPotNumber("creditPot"), totalTipsEarned: result.totalEarned } : {}),
-    ...(result.guaranteedMinimum !== null ? {
-      guestCount: parseGuestCount($("guestCount").value).count,
-      guaranteedMinimum: result.guaranteedMinimum,
-      totalTipsEarned: result.totalEarned,
-      paycheckDifference: result.paycheckDifference,
-      paycheckEntries: result.paycheck.entries,
-      paycheckRemainder: result.paycheckDifference - result.paycheck.totalEarned
-    } : {})
-  };
-
-  setElementVisible($("resultsCard"), true);
-  setElementVisible($("resultsEmpty"), false);
-  saveDraft();
-  setStatus("Calculated. Sending receipt...", "success");
-  sendReceipt();
-};
 </script>
 
 </body>

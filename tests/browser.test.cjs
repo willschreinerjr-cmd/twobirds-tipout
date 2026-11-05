@@ -4,7 +4,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require("playwright");
-const { root } = require("./test-helpers.cjs");
+const { root, loadBackend } = require("./test-helpers.cjs");
 
 let server;
 let browser;
@@ -203,38 +203,30 @@ test("new fields persist after reload and legacy drafts remain compatible", asyn
   assert.equal(await page.locator("#guaranteeSection").isVisible(), false);
 });
 
-test("send includes optional results, prevents unauthenticated sends, and never auto-sends edits", async t => {
+test("receipts are no longer sent to Google Sheets and edits make no backend requests", async t => {
   const page = await openCalculator(t);
-  await soloTimeCard(page);
-  await fill(page, "creditPot", "10.43");
-  await fill(page, "guestCount", "10");
   const sent = [];
   await page.route("https://script.google.com/**", async route => {
     sent.push(route.request().postDataJSON());
-    await route.fulfill({ json: { ok: true, replacedRows: 0 } });
+    await route.abort();
   });
-  await page.evaluate(() => { detectedVenue = "Ivy House"; });
-  await page.locator("#calc").click();
-  assert.equal(sent.length, 0);
-  assert.match(await page.locator("#sendStatus").textContent(), /session expired/i);
   await page.evaluate(() => {
-    document.getElementById("pinGate").style.display = "none";
     authenticatedManagerName = "Test Manager";
     authenticatedManagerToken = "local-test-token";
+    detectedVenue = "Ivy House";
   });
-  await page.locator("#calc").click();
-  await page.waitForFunction(() => document.getElementById("sendStatus").textContent === "Receipt sent!");
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].totalPot, 0);
-  assert.equal(sent[0].creditPot, 10.43);
-  assert.equal(sent[0].totalTipsEarned, 10.43);
-  assert.equal(sent[0].paycheckDifference, 29.57);
-  assert.equal(sent[0].entries[0].creditTipout, 10.43);
-  assert.equal(sent[0].paycheckEntries[0].tipout, 29.57);
-  await fill(page, "creditPot", "20");
-  await text(page, "paycheckAmount", "$20.00");
-  assert.equal(sent.length, 1);
-  assert.equal(await page.evaluate(() => latestReceipt), null);
+  await soloTimeCard(page);
+  await fill(page, "pot", "100");
+  await fill(page, "creditPot", "10.43");
+  await fill(page, "guestCount", "10");
+  await text(page, "cashTotal", "$100");
+  for (const id of ["calc", "notes", "venuePicker", "sendLoading"]) {
+    assert.equal(await page.locator(`#${id}`).count(), 0, `${id} removed`);
+  }
+  assert.deepEqual(await page.locator(".actions button").allTextContents(), ["+ Staff", "Reset"]);
+  assert.equal(await page.evaluate(() => typeof sendReceipt), "undefined");
+  await page.waitForTimeout(200);
+  assert.deepEqual(sent, []);
 });
 
 test("decimal credit tips persist, reconcile uneven shares and reject invalid cents", async t => {
@@ -261,8 +253,7 @@ test("decimal credit tips persist, reconcile uneven shares and reject invalid ce
   });
   await fill(page, "creditPot", "1.234");
   assert.equal(await page.locator("#creditError").isVisible(), true);
-  await page.locator("#calc").click();
-  assert.match(await page.locator("#sendStatus").textContent(), /two decimal places/);
+  assert.match(await page.locator("#creditError").textContent(), /two decimal places/);
   await fill(page, "creditPot", "100");
   await page.locator("#creditPot").blur();
   assert.equal(await page.locator("#creditPot").inputValue(), "$100.00");
@@ -671,7 +662,7 @@ test("venue entry and switching make no network requests and preserve manual tim
   assert.deepEqual(requests, []);
   assert.equal(await page.locator("#staffBody input").first().inputValue(), "Test Manager");
   assert.equal(await page.locator(".hours-input").inputValue(), "1");
-  assert.equal(await page.locator("#sendStatus").textContent(), "");
+  assert.equal(await page.locator("#calcStatus").textContent(), "");
 });
 
 test("authentication requests retain a bounded timeout", async t => {
@@ -684,7 +675,7 @@ test("authentication requests retain a bounded timeout", async t => {
       options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
     });
     try {
-      await postToAppsScript(RECEIPT_ENDPOINT, { action: "authManagerPin" }, { timeoutMs: 30 });
+      await postToAppsScript(BACKEND_ENDPOINT, { action: "authManagerPin" }, { timeoutMs: 30 });
       return "unexpected success";
     } catch (error) {
       return error.message;
@@ -693,4 +684,187 @@ test("authentication requests retain a bounded timeout", async t => {
     }
   });
   assert.match(timeoutMessage, /taking too long/);
+});
+
+async function useFakeBackend(page) {
+  const backend = loadBackend();
+  const requests = [];
+  await page.route("https://script.google.com/**", async route => {
+    const payload = route.request().postDataJSON();
+    requests.push(payload);
+    await route.fulfill({ json: backend.post(payload) });
+  });
+  return { backend, requests };
+}
+
+async function signInAs(page, pin, staff) {
+  return page.evaluate(async ({ pin, staff }) => {
+    const auth = await authenticateManagerPin(pin);
+    authenticatedManagerName = auth.managerName;
+    authenticatedManagerToken = auth.authToken;
+    personalEarningsProfile = auth.personalEarningsProfile;
+    setEarningsTrackerAccess(auth.earningsTracker);
+    document.getElementById("staffBody").innerHTML = "";
+    staff.forEach(([role, name, hours]) => addStaff(role, name, hours, false));
+    document.getElementById("venueSelect").value = "Ivy House";
+    detectedVenue = "Ivy House";
+    updateResults();
+    return { managerName: auth.managerName, authToken: auth.authToken };
+  }, { pin, staff });
+}
+
+async function trackerRows(page) {
+  return page.locator("#trackerShifts tbody tr.tracker-shift").evaluateAll(rows =>
+    rows.map(row => [...row.cells].map(cell => cell.textContent.trim()))
+  );
+}
+
+async function saveShift(page, date, dialogResponse) {
+  await page.locator("#saveShiftDate").fill(date);
+  if (dialogResponse !== undefined) {
+    page.once("dialog", dialog => dialogResponse ? dialog.accept() : dialog.dismiss());
+  }
+  await page.locator("#saveMyShift").click();
+  await page.waitForFunction(() => !/Saving/.test(document.getElementById("saveShiftStatus").textContent));
+  return page.locator("#saveShiftStatus").textContent();
+}
+
+test("Will saves shifts into two-week pay periods with totals, corrections, and paycheck comparison", async t => {
+  const page = await openCalculator(t, 390);
+  const { backend } = await useFakeBackend(page);
+  await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
+  await page.locator("#earningsTracker").waitFor();
+  await page.waitForFunction(() => !document.getElementById("trackerPeriodSelect").disabled);
+  assert.match(await page.locator("#trackerShifts").textContent(), /No shifts saved in this pay period yet/);
+  assert.equal(await page.locator("#saveShiftDate").inputValue(), await page.evaluate(() => businessDateISO()));
+  assert.equal(await page.evaluate(() => businessDateISO(new Date(2026, 10, 6, 2, 30))), "2026-11-05");
+  assert.equal(await page.evaluate(() => businessDateISO(new Date(2026, 10, 6, 3, 0))), "2026-11-06");
+
+  await fill(page, "pot", "200");
+  await fill(page, "creditPot", "100");
+  assert.match(await saveShift(page, "2026-11-05"), /Saved your Nov 5 shift: \$225\.00 before tax/);
+  await text(page, "trackerPeriodTitle", "PAY PERIOD: OCT 26 \u2013 NOV 8");
+  assert.deepEqual(await trackerRows(page), [["Nov 5", "5.0", "$225.00", "$178.32"]]);
+
+  assert.match(await saveShift(page, "2026-11-05", false), /Not saved/);
+  await fill(page, "guestCount", "100");
+  await text(page, "personalGross", "$275.00");
+  assert.match(await saveShift(page, "2026-11-05", true), /Updated your Nov 5 shift: \$275\.00/);
+  assert.deepEqual(await trackerRows(page), [["Nov 5", "5.0", "$275.00", "$217.94"]]);
+  assert.equal(backend.spreadsheets[0].getSheetByName("Shifts").rows.length, 2, "header plus one shift");
+
+  await fill(page, "guestCount", "");
+  await saveShift(page, "2026-10-27");
+  await saveShift(page, "2026-11-09");
+  await text(page, "trackerPeriodTitle", "PAY PERIOD: NOV 9 \u2013 NOV 22");
+  await page.locator("#trackerPeriodSelect").selectOption("2026-10-26");
+  assert.deepEqual(await trackerRows(page), [
+    ["Oct 27", "5.0", "$225.00", "$178.32"],
+    ["Nov 5", "5.0", "$275.00", "$217.94"]
+  ]);
+  assert.deepEqual(
+    await page.locator("#trackerShifts tfoot th").allTextContents(),
+    ["TOTAL", "10.0", "$500.00", "$396.26"]
+  );
+  const summary = await page.locator("#trackerSummary").textContent();
+  assert.match(summary, /TOTAL HOURS WORKED\s*10\.0/);
+  assert.match(summary, /TOTAL EARNINGS BEFORE TAX\s*\$500\.00/);
+  assert.match(summary, /TOTAL EARNINGS AFTER ESTIMATED TAX\s*\$396\.26/);
+  assert.match(summary, /Cash tips already received\s*\u2212\$200\.00/);
+  assert.match(summary, /ESTIMATED PAYCHECK DEPOSIT\s*\$196\.26/);
+
+  await page.locator("#trackerShifts button", { hasText: "Nov 5" }).click();
+  const detail = await page.locator(".tracker-detail").textContent();
+  for (const expected of [/Ivy House/, /Hourly wages\s*\$75\.00/, /Cash tips\s*\$100\.00/, /Credit tips\s*\$50\.00/, /Tip minimum owed\s*\$50\.00/]) {
+    assert.match(detail, expected);
+  }
+  await page.locator(".tracker-detail button", { hasText: "Edit" }).click();
+  await page.locator(".tracker-edit input[name=hours]").fill("4");
+  await page.locator(".tracker-edit button[type=submit]").click();
+  await page.waitForFunction(() => document.getElementById("trackerStatus").textContent === "Shift updated.");
+  assert.deepEqual((await trackerRows(page))[1], ["Nov 5", "4.0", "$260.00", "$206.05"]);
+
+  await page.locator("#trackerShifts button", { hasText: "Oct 27" }).click();
+  page.once("dialog", dialog => dialog.accept());
+  await page.locator(".tracker-detail button", { hasText: "Delete" }).click();
+  await page.waitForFunction(() => document.getElementById("trackerStatus").textContent === "Shift deleted.");
+  assert.deepEqual(await trackerRows(page), [["Nov 5", "4.0", "$260.00", "$206.05"]]);
+
+  await page.locator("#trackerActualPaycheck").fill("250");
+  await page.locator(".tracker-paycheck button").click();
+  await page.waitForFunction(() => document.getElementById("trackerStatus").textContent === "Actual paycheck saved.");
+  assert.match(await page.locator("#trackerSummary").textContent(), /ESTIMATED PAYCHECK DEPOSIT\s*\$106\.05/);
+  await text(page, "trackerPaycheckCompare", "Your actual paycheck was $143.95 more than estimated.");
+
+  for (const width of [320, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= width, `no page overflow at ${width}`);
+  }
+
+  const storage = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
+  assert.doesNotMatch(storage, /260\.00|206\.05|trackerShift|Shifts/);
+  await page.evaluate(() => {
+    const name = authenticatedManagerName;
+    const token = authenticatedManagerToken;
+    clearEarningsTracker();
+    authenticatedManagerName = name;
+    authenticatedManagerToken = token;
+    setEarningsTrackerAccess(true);
+    updateResults();
+  });
+  await page.waitForFunction(() => document.querySelectorAll("#trackerPeriodSelect option").length > 0);
+  await page.locator("#trackerPeriodSelect").selectOption("2026-10-26");
+  assert.deepEqual(await trackerRows(page), [["Nov 5", "4.0", "$260.00", "$206.05"]], "history reloads from the server");
+  assert.equal(await page.locator("#trackerActualPaycheck").inputValue(), "250.00");
+
+  await page.evaluate(() => clearManagerSessionStorage());
+  assert.equal(await page.locator("#earningsTracker").count(), 0);
+  assert.equal(await page.locator("#saveShiftControls").count(), 0);
+});
+
+test("the earnings tracker never appears or loads for anyone except Will's verified account", async t => {
+  const page = await openCalculator(t, 390);
+  const { requests } = await useFakeBackend(page);
+  const willStaff = [["Shift Manager", "Will Schreiner", "5"]];
+  await fill(page, "pot", "100");
+
+  const renee = await signInAs(page, "1212", [["Bartender", "Renee Ehlers", "3"], ...willStaff]);
+  assert.equal(await page.locator("#personalEarnings").isVisible(), true);
+  await page.waitForTimeout(150);
+  assert.equal(await page.locator("#earningsTracker, #saveShiftControls, #saveMyShift").count(), 0);
+  assert.doesNotMatch(await page.locator("body").innerText(), /Pay Period|Save My Shift|Paycheck Deposit/i);
+
+  const jake = await signInAs(page, "2334", willStaff);
+  assert.equal(await page.locator("#personalEarnings").isVisible(), false);
+  await page.waitForTimeout(150);
+  assert.equal(await page.locator("#earningsTracker, #saveShiftControls").count(), 0);
+
+  await page.evaluate(() => {
+    personalEarningsProfile = { owner: "Will Schreiner", hourlyRate: 15, withholdingRate: 0.2 };
+    earningsTrackerEnabled = true;
+    updateResults();
+  });
+  assert.equal(await page.locator("#earningsTracker").count(), 0, "a browser-side flag alone cannot unlock the tracker");
+
+  assert.ok(requests.every(request => !String(request.action).startsWith("tracker")), "no tracker requests for other accounts");
+  for (const session of [renee, jake]) {
+    const error = await page.evaluate(async ({ authToken }) => {
+      try {
+        await postToAppsScript(BACKEND_ENDPOINT, { action: "trackerList", managerName: "Will Schreiner", authToken });
+        return "allowed";
+      } catch (err) {
+        return err.message;
+      }
+    }, session);
+    assert.match(error, /Invalid auth session/);
+  }
+  const ownName = await page.evaluate(async ({ authToken }) => {
+    try {
+      await postToAppsScript(BACKEND_ENDPOINT, { action: "trackerList", managerName: "Jake Faapito", authToken });
+      return "allowed";
+    } catch (err) {
+      return err.message;
+    }
+  }, jake);
+  assert.match(ownName, /Unsupported action/);
 });

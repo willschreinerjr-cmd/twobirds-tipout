@@ -1,13 +1,3 @@
-const SHEET_ID = "1z3PVRaNaVq1XeBZ-nvmObPmNWJElsu_ze-SN7QKRf7Y";
-const BLOCK_COLUMNS = 4;
-const VENUE_GAP = 1;
-const DATE_SECTION_GAP = 1;
-const VENUE_SORT_ORDER = ["ivy house", "starling", "society", "psp", "rivulet"];
-const DATE_SEPARATOR_WIDTH = 22;
-const DATE_SEPARATOR_COLOR = "#1f2937";
-const NOTES_COLUMNS = 3;
-const FINDER_COLUMNS = 2;
-const WORKDAY_ROLLOVER_HOUR = 3;
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const AUTH_SESSION_KEY_PREFIX = "managerAuthSession:";
 const MANAGER_PINS = {
@@ -115,843 +105,246 @@ function getPersonalEarningsProfile(managerName) {
   return profiles[cleanName] || null;
 }
 
-function moneyWhole(n) {
-  return "$" + Math.floor(Number(n) || 0).toLocaleString("en-US");
+const EARNINGS_TRACKER_OWNER = "Will Schreiner";
+const TRACKER_SPREADSHEET_PROPERTY = "EARNINGS_TRACKER_SPREADSHEET_ID";
+const TRACKER_SPREADSHEET_NAME = "TwoBirds Tipout - Private Earnings Tracker";
+const PAY_PERIOD_ANCHOR = "2026-10-12";
+const PAY_PERIOD_DAYS = 14;
+const MAX_TRACKER_AMOUNT = 100000;
+const SHIFT_SHEET = "Shifts";
+const PAYCHECK_SHEET = "Paychecks";
+const SHIFT_COLUMNS = [
+  "id", "shiftDate", "venue", "hours", "wages", "cashTips", "creditTips",
+  "tipMinimum", "gross", "tax", "net", "savedAt", "updatedAt"
+];
+const PAYCHECK_COLUMNS = ["periodStart", "actualPaycheck", "updatedAt"];
+
+function isEarningsTrackerOwner(managerName) {
+  return String(managerName || "").trim().toLowerCase() === EARNINGS_TRACKER_OWNER.toLowerCase();
 }
 
-function moneyAmount(n) {
-  return "$" + Number(n).toFixed(2);
+function getEarningsTrackerAccess(managerName) {
+  return isEarningsTrackerOwner(managerName) ? { earningsTracker: true } : {};
 }
 
-function buildReceiptDetailRows(payload, entries) {
-  const rows = entries.length
-    ? entries.map(entry => [
-        entry.role || "",
-        normalizePersonName(entry.name),
-        entry.hours == null ? "" : Number(entry.hours),
-        moneyWhole(entry.tipout)
-      ])
-    : [["", "", "", ""]];
-  if (payload.cashRoundingDifference) {
-    rows.push([
-      Number(payload.cashRoundingDifference) > 0 ? "Extra cash needed for rounding:" : "Cash remaining in pot:",
-      moneyWhole(Math.abs(Number(payload.cashRoundingDifference))), "", ""
-    ]);
+function requireEarningsTrackerOwner(payload) {
+  const managerName = requireValidManagerAuth(payload);
+  // Other accounts get the same response as an unsupported action, revealing nothing.
+  if (!isEarningsTrackerOwner(managerName)) {
+    throw new Error("Unsupported action.");
   }
-  if (payload.creditUnallocated) {
-    rows.push(["Credit tips not yet allocated:", moneyAmount(payload.creditUnallocated), "", ""]);
-  }
-  if (payload.creditPot != null) {
-    rows.push(["Credit Tip Pot:", moneyAmount(payload.creditPot), "", ""]);
-    rows.push(["Credit Tips", "Name", "Hours", "Tipout"]);
-    entries.forEach(entry => rows.push([
-      entry.role || "", normalizePersonName(entry.name),
-      entry.hours == null ? "" : Number(entry.hours), moneyAmount(entry.creditTipout)
-    ]));
-    rows.push(["With Credit Tips:", moneyAmount(payload.totalTipsEarned), "", ""]);
-    rows.push(["Cash + Credit", "Name", "Hours", "Total"]);
-    entries.forEach(entry => rows.push([
-      entry.role || "", normalizePersonName(entry.name),
-      entry.hours == null ? "" : Number(entry.hours),
-      moneyAmount(Number(entry.tipout) + Number(entry.creditTipout))
-    ]));
-  }
-  if (payload.guestCount != null) {
-    rows.push(["Number of Guests:", Number(payload.guestCount), "", ""]);
-    rows.push(["Guaranteed Tip Minimum:", moneyAmount(payload.guaranteedMinimum), "", ""]);
-    rows.push(["Total Tips Earned:", moneyAmount(payload.totalTipsEarned), "", ""]);
-    rows.push(["Additional Paycheck Amount:", moneyAmount(payload.paycheckDifference), "", ""]);
-    if (Number(payload.paycheckDifference) > 0) {
-      rows.push(["Paycheck Shares", "Name", "Hours", "Amount"]);
-      (payload.paycheckEntries || []).forEach(entry => rows.push([
-        entry.role || "", normalizePersonName(entry.name),
-        entry.hours == null ? "" : Number(entry.hours), moneyAmount(entry.tipout)
-      ]));
-      if (payload.paycheckRemainder) {
-        rows.push(["Time-card rounding adjustment:", moneyAmount(payload.paycheckRemainder), "", ""]);
-      }
-    }
-  }
-  return rows;
+  return managerName;
 }
 
-function normalizePersonName(name) {
-  const text = String(name || "").trim().replace(/\s+/g, " ");
-  if (!text) return "";
-  return text
-    .split(" ")
-    .map(part => {
-      if (/^[A-Z]{2,3}$/.test(part)) return part;
-      const lower = part.toLowerCase();
-      return lower.charAt(0).toUpperCase() + lower.slice(1);
-    })
-    .join(" ");
+function roundCents(value) {
+  return Math.round(Number(value) * 100) / 100;
 }
 
-function parseDateValue(value) {
-  if (!value) return null;
-
-  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
-    return value;
+function isoDateToDayNumber(isoDate) {
+  const match = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const time = Date.UTC(year, month - 1, day);
+  const check = new Date(time);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    return null;
   }
+  return Math.round(time / 86400000);
+}
 
-  const text = String(value).trim();
-  if (!text) return null;
+function isPayPeriodStart(isoDate) {
+  const day = isoDateToDayNumber(isoDate);
+  if (day === null) return false;
+  const offset = day - isoDateToDayNumber(PAY_PERIOD_ANCHOR);
+  return ((offset % PAY_PERIOD_DAYS) + PAY_PERIOD_DAYS) % PAY_PERIOD_DAYS === 0;
+}
 
-  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) {
-    const year = Number(isoMatch[1]);
-    const month = Number(isoMatch[2]);
-    const day = Number(isoMatch[3]);
-    const localDate = new Date(year, month - 1, day);
-    return isNaN(localDate.getTime()) ? null : localDate;
+function parseTrackerAmount(value, label) {
+  const number = Number(value);
+  if (value === "" || value === null || value === undefined || !Number.isFinite(number) ||
+      number < 0 || number > MAX_TRACKER_AMOUNT) {
+    throw new Error(`${label} must be a nonnegative amount.`);
   }
-
-  const parsed = new Date(text);
-  return isNaN(parsed.getTime()) ? null : parsed;
+  return roundCents(number);
 }
 
-function toISODate(value) {
-  if (!value) return "";
-
-  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
-    const tzOffset = value.getTimezoneOffset() * 60000;
-    return new Date(value.getTime() - tzOffset).toISOString().slice(0, 10);
+function buildTrackerShift(input, hourlyRate, withholdingRate) {
+  const shiftDate = String(input && input.shiftDate || "").trim();
+  if (isoDateToDayNumber(shiftDate) === null) {
+    throw new Error("Enter a valid shift date.");
   }
-
-  const text = String(value).trim();
-  if (!text) return "";
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-
-  const parsed = new Date(text);
-  if (!isNaN(parsed.getTime())) {
-    const tzOffset = parsed.getTimezoneOffset() * 60000;
-    return new Date(parsed.getTime() - tzOffset).toISOString().slice(0, 10);
+  const venue = String(input && input.venue || "").trim().slice(0, 60);
+  if (!venue) {
+    throw new Error("Select a venue before saving your shift.");
   }
-
-  return "";
-}
-
-function formatDayLabel(value) {
-  const parsed = parseDateValue(value);
-  const date = parsed || new Date();
-  return Utilities.formatDate(date, Session.getScriptTimeZone(), "EEEE, MMM d");
-}
-
-function normalizeDayLabel(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-
-  const iso = toISODate(text);
-  if (iso) return formatDayLabel(iso);
-
-  const parsed = parseDateValue(text);
-  if (parsed) return formatDayLabel(parsed);
-
-  return text;
-}
-
-function getMonthTabName(value) {
-  const date = parseDateValue(value);
-  if (!date) {
-    return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMMM");
+  const hours = Number(input && input.hours);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
+    throw new Error("Hours must be greater than 0 and no more than 24.");
   }
-
-  return Utilities.formatDate(date, Session.getScriptTimeZone(), "MMMM");
+  const cashTips = parseTrackerAmount(input.cashTips, "Cash tips");
+  const creditTips = parseTrackerAmount(input.creditTips, "Credit tips");
+  const tipMinimum = parseTrackerAmount(input.tipMinimum, "Tip minimum");
+  // Matches calculatePersonalEarnings in index.html so saved totals equal the on-screen totals.
+  const wages = roundCents(hours * hourlyRate);
+  const tips = roundCents(cashTips + creditTips);
+  const gross = roundCents(wages + tips + tipMinimum);
+  const tax = roundCents(gross * withholdingRate);
+  const net = roundCents(gross - tax);
+  return { shiftDate, venue, hours, wages, cashTips, creditTips, tipMinimum, gross, tax, net };
 }
 
-function getBusinessDateISO(submittedAtValue, fallbackDateValue) {
-  const submittedAt = parseDateValue(submittedAtValue);
-  if (submittedAt) {
-    const adjusted = new Date(submittedAt.getTime());
-    if (adjusted.getHours() < WORKDAY_ROLLOVER_HOUR) {
-      adjusted.setDate(adjusted.getDate() - 1);
-    }
-    return toISODate(adjusted);
+function getTrackerSpreadsheet() {
+  const props = PropertiesService.getScriptProperties();
+  const existingId = props.getProperty(TRACKER_SPREADSHEET_PROPERTY);
+  if (existingId) return SpreadsheetApp.openById(existingId);
+
+  // Created in the deploying account's Drive and not shared with anyone.
+  const spreadsheet = SpreadsheetApp.create(TRACKER_SPREADSHEET_NAME);
+  props.setProperty(TRACKER_SPREADSHEET_PROPERTY, spreadsheet.getId());
+  return spreadsheet;
+}
+
+function getTrackerSheet(spreadsheet, name, columns) {
+  let sheet = spreadsheet.getSheetByName(name);
+  if (!sheet) {
+    const sheets = spreadsheet.getSheets();
+    const unusedDefault = sheets.length === 1 && sheets[0].getLastRow() === 0 &&
+      sheets[0].getName() !== SHIFT_SHEET && sheets[0].getName() !== PAYCHECK_SHEET;
+    sheet = unusedDefault ? sheets[0].setName(name) : spreadsheet.insertSheet(name);
   }
-
-  return toISODate(fallbackDateValue) || toISODate(new Date());
-}
-
-function getMonthlySheet(ss, dateValue) {
-  const tabName = getMonthTabName(dateValue);
-  return ss.getSheetByName(tabName) || ss.insertSheet(tabName);
-}
-
-function getMonthlyNotesSheet(ss, dateValue) {
-  const tabName = `${getMonthTabName(dateValue)} Notes Log`;
-  const sheet = ss.getSheetByName(tabName) || ss.insertSheet(tabName);
-  if (sheet.getMaxColumns() < NOTES_COLUMNS) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), NOTES_COLUMNS - sheet.getMaxColumns());
+  if (sheet.getLastRow() === 0) {
+    writeTrackerRow(sheet, 1, columns);
+    sheet.setFrozenRows(1);
   }
   return sheet;
 }
 
-function getReceiptFinderSheet(ss) {
-  const tabName = "Receipt Finder";
-  const sheet = ss.getSheetByName(tabName) || ss.insertSheet(tabName);
-
-  if (sheet.getMaxColumns() < FINDER_COLUMNS) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), FINDER_COLUMNS - sheet.getMaxColumns());
-  }
-
-  sheet.setColumnWidth(1, 120);
-  sheet.setColumnWidth(2, 220);
-
-  return sheet;
+function writeTrackerRow(sheet, row, values) {
+  // Plain-text cells keep dates and cents exactly as saved.
+  sheet.getRange(row, 1, 1, values.length)
+    .setNumberFormat("@")
+    .setValues([values.map(value => value === null || value === undefined ? "" : String(value))]);
 }
 
-function upsertFinderEntry(dayMap, dayOrder, dateISO, venue, linkUrl) {
-  if (!dayMap[dateISO]) {
-    dayMap[dateISO] = [];
-    dayOrder.push(dateISO);
-  }
-
-  const venueKey = String(venue || "").trim().toLowerCase();
-  const idx = dayMap[dateISO].findIndex(entry => entry.venueKey === venueKey);
-  const entry = {
-    dateISO,
-    venue: String(venue || "").trim(),
-    venueKey,
-    linkUrl: String(linkUrl || "")
-  };
-
-  if (idx >= 0) {
-    dayMap[dateISO][idx] = entry;
-  } else {
-    dayMap[dateISO].push(entry);
-  }
-}
-
-function readReceiptFinderModel(finderSheet) {
-  const dayMap = {};
-  const dayOrder = [];
-  const lastRow = finderSheet.getLastRow();
-  if (lastRow === 0) return { dayMap, dayOrder };
-
-  const readCols = Math.max(finderSheet.getLastColumn(), 3);
-  const values = finderSheet.getRange(1, 1, lastRow, readCols).getValues();
-  const formulas = finderSheet.getRange(1, 1, lastRow, readCols).getFormulas();
-  let currentDateISO = "";
-
-  for (let i = 0; i < values.length; i++) {
-    const col1 = String(values[i][0] || "").trim();
-    const col2 = String(values[i][1] || "").trim();
-    const col3 = String(values[i][2] || "").trim();
-
-    const headerMatch = col1.match(/(\d{4}-\d{2}-\d{2})/);
-    if (col1 && !col2 && !col3 && headerMatch) {
-      currentDateISO = headerMatch[1];
-      if (!dayMap[currentDateISO]) {
-        dayMap[currentDateISO] = [];
-        dayOrder.push(currentDateISO);
-      }
-      continue;
-    }
-
-    if (col1 === "Date" && col2 === "Venue") continue;
-    if (col1 === "Venue" && (col2 === "Go To Receipt" || col2 === "Open Receipt")) continue;
-
-    const rowDate = toISODate(col1);
-    const isLegacyThreeCol = !!rowDate;
-    const venue = isLegacyThreeCol ? col2 : col1;
-    if (!venue) continue;
-
-    const dateISO = rowDate || currentDateISO;
-    if (!dateISO) continue;
-
-    const formula = isLegacyThreeCol ? (formulas[i][2] || "") : (formulas[i][1] || "");
-    const linkMatch = formula.match(/HYPERLINK\("([^"]+)"/i);
-    const linkUrl = linkMatch ? linkMatch[1] : "";
-
-    upsertFinderEntry(dayMap, dayOrder, dateISO, venue, linkUrl);
-  }
-
-  return { dayMap, dayOrder };
-}
-
-function rewriteReceiptFinderSheet(finderSheet, dayMap, dayOrder) {
-  const lastRow = finderSheet.getLastRow();
-  const lastCol = finderSheet.getLastColumn();
-  if (lastRow > 0 && lastCol > 0) {
-    finderSheet.getRange(1, 1, lastRow, Math.max(lastCol, FINDER_COLUMNS)).breakApart();
-  }
-
-  finderSheet.clearContents();
-  finderSheet.clearFormats();
-  finderSheet.clearNotes();
-
-  const rows = [];
-  const sections = [];
-
-  const sortedDays = [...dayOrder].sort((a, b) => (a < b ? 1 : -1));
-  sortedDays.forEach(dateISO => {
-    const entries = (dayMap[dateISO] || []).slice().sort((a, b) => a.venue.localeCompare(b.venue));
-    if (!entries.length) return;
-
-    const headerRow = rows.length + 1;
-    rows.push([`${formatDayLabel(dateISO)} (${dateISO})`, ""]);
-
-    const tableHeaderRow = rows.length + 1;
-    rows.push(["Venue", "Go To Receipt"]);
-
-    const firstEntryRow = rows.length + 1;
-    entries.forEach(entry => {
-      rows.push([
-        entry.venue,
-        entry.linkUrl ? `=HYPERLINK("${entry.linkUrl}","Open Receipt")` : ""
-      ]);
-    });
-
-    rows.push(["", ""]);
-
-    sections.push({
-      headerRow,
-      tableHeaderRow,
-      firstEntryRow,
-      entryCount: entries.length
-    });
-  });
-
-  if (!rows.length) {
-    finderSheet.setFrozenRows(0);
-    finderSheet.setColumnWidth(1, 120);
-    finderSheet.setColumnWidth(2, 220);
-    return;
-  }
-
-  finderSheet.getRange(1, 1, rows.length, FINDER_COLUMNS).setValues(rows);
-
-  sections.forEach(section => {
-    const dayRange = finderSheet.getRange(section.headerRow, 1, 1, FINDER_COLUMNS);
-    dayRange.breakApart();
-    dayRange.merge();
-    dayRange
-      .setFontWeight("bold")
-      .setFontSize(13)
-      .setHorizontalAlignment("center")
-      .setVerticalAlignment("middle")
-      .setBackground("#c7d2fe")
-      .setFontColor("#111827");
-
-    finderSheet.getRange(section.tableHeaderRow, 1, 1, FINDER_COLUMNS)
-      .setFontWeight("bold")
-      .setBackground("#e5e7eb");
-
-    const fullTableRows = section.entryCount + 2;
-    finderSheet.getRange(section.headerRow, 1, fullTableRows, FINDER_COLUMNS)
-      .setBorder(true, true, true, true, true, true, "#9ca3af", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
-
-    finderSheet.getRange(section.tableHeaderRow, 1, section.entryCount + 1, FINDER_COLUMNS)
-      .setBorder(true, true, true, true, true, true, "#d1d5db", SpreadsheetApp.BorderStyle.SOLID);
-
-    for (let i = 0; i < section.entryCount; i++) {
-      const row = section.firstEntryRow + i;
-      const bg = (i % 2 === 0) ? "#ffffff" : "#f8fafc";
-      finderSheet.getRange(row, 1, 1, FINDER_COLUMNS).setBackground(bg);
-    }
-  });
-
-  finderSheet.setFrozenRows(0);
-  finderSheet.setColumnWidth(1, 120);
-  finderSheet.setColumnWidth(2, 220);
-}
-
-function syncReceiptFinder(ss, targetDate, venue, monthSheetId, dayStartCol, receiptStartRow) {
-  const dateISO = toISODate(targetDate);
-  const venueText = String(venue || "").trim();
-  const venueKey = venueText.toLowerCase();
-  if (!dateISO || !venueKey) return;
-
-  const targetA1 = `${columnToA1(dayStartCol)}${Math.max(1, Number(receiptStartRow) || 1)}`;
-  const linkUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${monthSheetId}&range=${targetA1}`;
-
-  const finderSheet = getReceiptFinderSheet(ss);
-  const model = readReceiptFinderModel(finderSheet);
-  upsertFinderEntry(model.dayMap, model.dayOrder, dateISO, venueText, linkUrl);
-  rewriteReceiptFinderSheet(finderSheet, model.dayMap, model.dayOrder);
-}
-
-function getNotesEntryLink(ss, dateValue, venueValue) {
-  const targetDate = toISODate(dateValue);
-  const targetDay = normalizeDayLabel(targetDate || dateValue);
-  const venueKey = String(venueValue || "").trim().toLowerCase();
-  if (!targetDay || !venueKey) return null;
-
-  const notesSheet = getMonthlyNotesSheet(ss, targetDate || dateValue);
-  const lastRow = notesSheet.getLastRow();
-  if (lastRow === 0) return null;
-
-  const values = notesSheet.getRange(1, 1, lastRow, NOTES_COLUMNS).getValues();
-  let currentDay = "";
-
-  for (let i = 0; i < values.length; i++) {
-    const col1 = String(values[i][0] || "").trim();
-    const col2 = String(values[i][1] || "").trim();
-    const col3 = String(values[i][2] || "").trim();
-
-    if (col1 && !col2 && !col3) {
-      currentDay = normalizeDayLabel(col1);
-      continue;
-    }
-
-    if ((col1 === "Venue" || col1 === "Venue:") && (col2 === "Notes" || col2 === "Notes:")) continue;
-
-    if (currentDay === targetDay && col1 && col2) {
-      if (col1.toLowerCase() === venueKey) {
-        const row = i + 1;
-        const linkUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${notesSheet.getSheetId()}&range=A${row}`;
-        return { linkUrl };
-      }
-    }
-  }
-
-  return null;
-}
-
-function columnToA1(col) {
-  let n = Math.max(1, Number(col) || 1);
-  let out = "";
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    out = String.fromCharCode(65 + rem) + out;
-    n = Math.floor((n - 1) / 26);
-  }
-  return out;
-}
-
-function isRowEmpty(rowValues) {
-  for (let i = 0; i < rowValues.length; i++) {
-    if (String(rowValues[i] || "").trim() !== "") return false;
-  }
-  return true;
-}
-
-function getBlockHeight(sheet, startRow, startCol, lastRow) {
-  const numRows = lastRow - startRow + 1;
-  const values = sheet.getRange(startRow, startCol, numRows, BLOCK_COLUMNS).getValues();
-
-  for (let i = 1; i < values.length; i++) {
-    if (isRowEmpty(values[i])) {
-      return i + 1;
-    }
-  }
-
-  return values.length;
-}
-
-function findReceiptBlocks(sheet) {
+function readTrackerRows(sheet, columns) {
   const lastRow = sheet.getLastRow();
-  if (lastRow === 0) return [];
-
-  const lastCol = Math.max(sheet.getLastColumn(), BLOCK_COLUMNS);
-  const values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
-  const blocks = [];
-
-  for (let r = 0; r < values.length - 2; r++) {
-    for (let c = 0; c <= lastCol - BLOCK_COLUMNS; c++) {
-      const headVenue = String(values[r][c] || "").trim();
-      const headDate = toISODate(values[r][c + 1]);
-      const nextRowLabel = String(values[r + 1][c] || "").trim();
-      const row2Label = String(values[r + 2][c] || "").trim();
-
-      let headerOffset = -1;
-      if (row2Label === "Role") {
-        headerOffset = 2;
-      } else if ((row2Label === "Notes" || row2Label === "Notes:") && r + 3 < values.length) {
-        const roleAfterNotes = String(values[r + 3][c] || "").trim();
-        if (roleAfterNotes === "Role") {
-          headerOffset = 3;
-        }
-      }
-
-      if (headerOffset === -1) continue;
-
-      const headerRole = String(values[r + headerOffset][c] || "").trim();
-      const headerName = String(values[r + headerOffset][c + 1] || "").trim();
-      const headerHours = String(values[r + headerOffset][c + 2] || "").trim();
-      const headerTipout = String(values[r + headerOffset][c + 3] || "").trim();
-
-      if (
-        headVenue &&
-        headDate &&
-        (nextRowLabel === "Total Pot" || nextRowLabel === "Total Pot:") &&
-        headerRole === "Role" &&
-        headerName === "Name" &&
-        headerHours === "Hours" &&
-        headerTipout === "Tipout"
-      ) {
-        const row = r + 1;
-        const col = c + 1;
-        blocks.push({
-          row,
-          col,
-          date: headDate,
-          venueRaw: headVenue,
-          venueKey: headVenue.toLowerCase(),
-          height: getBlockHeight(sheet, row, col, lastRow)
-        });
-      }
-    }
-  }
-
-  return blocks.sort((a, b) => (a.row - b.row) || (a.col - b.col));
-}
-
-function buildDateSections(blocks) {
-  const map = {};
-
-  blocks.forEach(block => {
-    const key = block.date || "";
-    if (!key) return;
-
-    if (!map[key]) {
-      map[key] = {
-        date: key,
-        col: block.col,
-        topRow: block.row,
-        bottomRow: block.row + block.height - 1,
-        blocks: [block]
-      };
-    } else {
-      map[key].col = Math.min(map[key].col, block.col);
-      map[key].topRow = Math.min(map[key].topRow, block.row);
-      map[key].bottomRow = Math.max(map[key].bottomRow, block.row + block.height - 1);
-      map[key].blocks.push(block);
-    }
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, columns.length).getValues().map((values, index) => {
+    const record = { row: index + 2 };
+    columns.forEach((column, columnIndex) => { record[column] = String(values[columnIndex]); });
+    return record;
   });
-
-  return Object.keys(map)
-    .map(key => map[key])
-    .sort((a, b) => a.col - b.col);
 }
 
-function getVenueSortRank(venue) {
-  const key = String(venue || "").trim().toLowerCase();
-  const idx = VENUE_SORT_ORDER.indexOf(key);
-  return idx >= 0 ? idx : 99;
-}
-
-function normalizeDateSectionVenueOrder(sheet, dateISO) {
-  const targetDate = toISODate(dateISO);
-  if (!targetDate) return;
-
-  const blocks = findReceiptBlocks(sheet)
-    .filter(block => block.date === targetDate)
-    .sort((a, b) => a.row - b.row);
-  if (blocks.length <= 1) return;
-
-  const ordered = blocks.slice().sort((a, b) => {
-    const rankDiff = getVenueSortRank(a.venueKey) - getVenueSortRank(b.venueKey);
-    if (rankDiff !== 0) return rankDiff;
-    return a.row - b.row;
+function toTrackerShift(record) {
+  const shift = { id: record.id, shiftDate: record.shiftDate, venue: record.venue,
+    savedAt: record.savedAt, updatedAt: record.updatedAt };
+  ["hours", "wages", "cashTips", "creditTips", "tipMinimum", "gross", "tax", "net"].forEach(key => {
+    shift[key] = Number(record[key]) || 0;
   });
+  return shift;
+}
 
-  const isAlreadyOrdered = blocks.every((block, idx) => block.row === ordered[idx].row && block.col === ordered[idx].col);
-  if (isAlreadyOrdered) return;
+function shiftToRow(shift) {
+  return SHIFT_COLUMNS.map(column => shift[column]);
+}
 
-  const sectionCol = Math.min(...blocks.map(block => block.col));
-  const sectionTopRow = Math.min(...blocks.map(block => block.row));
-  const sectionBottomRow = Math.max(...blocks.map(block => block.row + block.height - 1));
-  const sectionHeight = sectionBottomRow - sectionTopRow + 1;
+function sameShiftSlot(record, shiftDate, venue) {
+  return record.shiftDate === shiftDate && record.venue.trim().toLowerCase() === venue.trim().toLowerCase();
+}
 
-  const ss = sheet.getParent();
-  let tempSheet = null;
+function listEarningsTracker(spreadsheet) {
+  const shifts = readTrackerRows(getTrackerSheet(spreadsheet, SHIFT_SHEET, SHIFT_COLUMNS), SHIFT_COLUMNS)
+    .filter(record => record.id)
+    .map(toTrackerShift)
+    .sort((a, b) => a.shiftDate.localeCompare(b.shiftDate) || a.savedAt.localeCompare(b.savedAt));
+  const paychecks = {};
+  readTrackerRows(getTrackerSheet(spreadsheet, PAYCHECK_SHEET, PAYCHECK_COLUMNS), PAYCHECK_COLUMNS)
+    .forEach(record => {
+      if (record.periodStart && record.actualPaycheck !== "") {
+        paychecks[record.periodStart] = Number(record.actualPaycheck);
+      }
+    });
+  return { payPeriodAnchor: PAY_PERIOD_ANCHOR, payPeriodDays: PAY_PERIOD_DAYS, shifts, paychecks };
+}
 
+function withTrackerLock(callback) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
   try {
-    tempSheet = ss.insertSheet(`__tmp_reorder_${Date.now()}`);
-
-    const copyMap = new Map();
-    let tempCursor = 1;
-    blocks.forEach(block => {
-      const key = `${block.row}:${block.col}`;
-      sheet.getRange(block.row, block.col, block.height, BLOCK_COLUMNS)
-        .copyTo(tempSheet.getRange(tempCursor, 1, block.height, BLOCK_COLUMNS), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
-      copyMap.set(key, { tempRow: tempCursor, height: block.height });
-      tempCursor += block.height;
-    });
-
-    sheet.getRange(sectionTopRow, sectionCol, sectionHeight, BLOCK_COLUMNS).clearContent().clearFormat();
-
-    let cursorRow = sectionTopRow;
-    ordered.forEach((block, idx) => {
-      const key = `${block.row}:${block.col}`;
-      const copied = copyMap.get(key);
-      if (!copied) return;
-
-      tempSheet.getRange(copied.tempRow, 1, copied.height, BLOCK_COLUMNS)
-        .copyTo(sheet.getRange(cursorRow, sectionCol, copied.height, BLOCK_COLUMNS), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
-
-      cursorRow += copied.height;
-      if (idx < ordered.length - 1) {
-        cursorRow += VENUE_GAP;
-      }
-    });
+    return callback();
   } finally {
-    if (tempSheet) {
-      ss.deleteSheet(tempSheet);
-    }
+    lock.releaseLock();
   }
 }
 
-function styleDateSectionSeparators(sheet) {
-  const blocks = findReceiptBlocks(sheet);
-  const sections = buildDateSections(blocks);
-  if (!sections.length) return;
-
-  const maxRows = Math.max(sheet.getMaxRows(), 1);
-  const maxCols = Math.max(sheet.getMaxColumns(), 1);
-  const separatorCols = [];
-
-  for (let i = 0; i < sections.length - 1; i++) {
-    const separatorCol = sections[i].col + BLOCK_COLUMNS;
-    separatorCols.push(separatorCol);
+function handleEarningsTrackerAction(action, payload, managerName) {
+  const profile = getPersonalEarningsProfile(managerName);
+  if (!profile || !Number.isFinite(profile.hourlyRate)) {
+    throw new Error("Unsupported action.");
   }
 
-  separatorCols.forEach(col => {
-    if (col > 1) {
-      sheet.getRange(1, col - 1, maxRows, 1)
-        .setBorder(null, null, null, false, null, null);
+  return withTrackerLock(() => {
+    const spreadsheet = getTrackerSpreadsheet();
+    if (action === "trackerList") {
+      return listEarningsTracker(spreadsheet);
     }
 
-    if (col < maxCols) {
-      sheet.getRange(1, col + 1, maxRows, 1)
-        .setBorder(null, false, null, null, null, null);
-    }
+    const shiftSheet = getTrackerSheet(spreadsheet, SHIFT_SHEET, SHIFT_COLUMNS);
+    const records = readTrackerRows(shiftSheet, SHIFT_COLUMNS).filter(record => record.id);
+    const now = new Date().toISOString();
 
-    sheet.setColumnWidth(col, DATE_SEPARATOR_WIDTH);
-    sheet.getRange(1, col, maxRows, 1)
-      .setBackground(DATE_SEPARATOR_COLOR)
-      .setFontColor(DATE_SEPARATOR_COLOR)
-      .setBorder(false, false, false, false, false, false);
-  });
-
-  blocks.forEach(block => {
-    reapplyReceiptBlockFormatting(sheet, block);
-  });
-}
-
-function reapplyReceiptBlockFormatting(sheet, block) {
-  const startRow = block.row;
-  const startCol = block.col;
-  const detailCount = Math.max(1, block.height - 4);
-
-  sheet.getRange(startRow + 2, startCol, detailCount + 1, BLOCK_COLUMNS)
-    .setBorder(true, true, true, true, true, true);
-
-  sheet.getRange(startRow + 3, startCol + 2, detailCount, 1).setHorizontalAlignment("right");
-  sheet.getRange(startRow + 3, startCol + 3, detailCount, 1).setHorizontalAlignment("right");
-  sheet.getRange(startRow + 1, startCol + 1, 1, 1).setHorizontalAlignment("right");
-}
-
-function repairReceiptFormattingForSheetName(sheetName) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  const targetSheet = ss.getSheetByName(String(sheetName || "").trim());
-  if (!targetSheet) {
-    throw new Error(`Sheet not found: ${sheetName}`);
-  }
-
-  const blocks = findReceiptBlocks(targetSheet);
-  blocks.forEach(block => {
-    reapplyReceiptBlockFormatting(targetSheet, block);
-  });
-
-  styleDateSectionSeparators(targetSheet);
-
-  return {
-    sheet: targetSheet.getName(),
-    blocksFixed: blocks.length
-  };
-}
-
-function repairCurrentMonthReceiptFormatting() {
-  const currentMonthSheetName = getMonthTabName(new Date());
-  return repairReceiptFormattingForSheetName(currentMonthSheetName);
-}
-
-function upsertDayEntry(dayMap, dayOrder, day, venue, notes) {
-  if (!dayMap[day]) {
-    dayMap[day] = [];
-    dayOrder.push(day);
-  }
-
-  const venueKey = venue.toLowerCase();
-  const idx = dayMap[day].findIndex(entry => entry.venueKey === venueKey);
-  const entry = { venue, venueKey, notes };
-
-  if (idx >= 0) {
-    dayMap[day][idx] = entry;
-  } else {
-    dayMap[day].push(entry);
-  }
-}
-
-function readNotesModel(notesSheet) {
-  const dayMap = {};
-  const dayOrder = [];
-  const lastRow = notesSheet.getLastRow();
-  if (lastRow === 0) return { dayMap, dayOrder };
-
-  const values = notesSheet.getRange(1, 1, lastRow, NOTES_COLUMNS).getValues();
-  const row1 = values[0].map(v => String(v || "").trim());
-  const isLegacyFlat = row1[0] === "Day" && row1[1] === "Venue" && row1[2] === "Notes";
-
-  if (isLegacyFlat) {
-    for (let i = 1; i < values.length; i++) {
-      const day = normalizeDayLabel(values[i][0]);
-      const venue = String(values[i][1] || "").trim();
-      const notes = String(values[i][2] || "").trim();
-      if (!day || !venue) continue;
-      upsertDayEntry(dayMap, dayOrder, day, venue, notes);
-    }
-    return { dayMap, dayOrder };
-  }
-
-  let currentDay = "";
-  for (let i = 0; i < values.length; i++) {
-    const col1 = String(values[i][0] || "").trim();
-    const col2 = String(values[i][1] || "").trim();
-    const col3 = String(values[i][2] || "").trim();
-
-    if (col1 && !col2 && !col3) {
-      currentDay = normalizeDayLabel(col1);
-      if (!dayMap[currentDay]) {
-        dayMap[currentDay] = [];
-        dayOrder.push(currentDay);
+    if (action === "trackerSaveShift" || action === "trackerUpdateShift") {
+      const shift = buildTrackerShift(payload.shift || {}, profile.hourlyRate, profile.withholdingRate);
+      const editing = action === "trackerUpdateShift"
+        ? records.find(record => record.id === String(payload.id || ""))
+        : null;
+      if (action === "trackerUpdateShift" && !editing) {
+        throw new Error("That shift no longer exists. Refresh and try again.");
       }
-      continue;
+      const duplicate = records.find(record =>
+        sameShiftSlot(record, shift.shiftDate, shift.venue) && (!editing || record.id !== editing.id)
+      );
+      if (duplicate && (editing || !payload.replace)) {
+        return { duplicate: toTrackerShift(duplicate), ...listEarningsTracker(spreadsheet) };
+      }
+
+      const target = editing || duplicate;
+      const saved = {
+        ...shift,
+        id: target ? target.id : Utilities.getUuid(),
+        savedAt: target ? target.savedAt : now,
+        updatedAt: now
+      };
+      writeTrackerRow(shiftSheet, target ? target.row : shiftSheet.getLastRow() + 1, shiftToRow(saved));
+      return { saved: toTrackerShift(saved), replaced: Boolean(target), ...listEarningsTracker(spreadsheet) };
     }
 
-    if ((col1 === "Venue" || col1 === "Venue:") && (col2 === "Notes" || col2 === "Notes:")) continue;
-
-    if (currentDay && col1 && col2) {
-      upsertDayEntry(dayMap, dayOrder, currentDay, col1, col2);
+    if (action === "trackerDeleteShift") {
+      const record = records.find(item => item.id === String(payload.id || ""));
+      if (record) shiftSheet.deleteRow(record.row);
+      return { deleted: Boolean(record), ...listEarningsTracker(spreadsheet) };
     }
-  }
 
-  return { dayMap, dayOrder };
-}
+    if (action === "trackerSetPaycheck") {
+      const periodStart = String(payload.periodStart || "").trim();
+      if (!isPayPeriodStart(periodStart)) {
+        throw new Error("Choose a valid pay period.");
+      }
+      const clearing = payload.actualPaycheck === null || payload.actualPaycheck === "";
+      const amount = clearing ? "" : parseTrackerAmount(payload.actualPaycheck, "Actual paycheck");
+      const paycheckSheet = getTrackerSheet(spreadsheet, PAYCHECK_SHEET, PAYCHECK_COLUMNS);
+      const existing = readTrackerRows(paycheckSheet, PAYCHECK_COLUMNS)
+        .find(record => record.periodStart === periodStart);
+      const row = existing ? existing.row : paycheckSheet.getLastRow() + 1;
+      writeTrackerRow(paycheckSheet, row, [periodStart, amount, now]);
+      return listEarningsTracker(spreadsheet);
+    }
 
-function rewriteNotesSheet(notesSheet, dayMap, dayOrder) {
-  const lastRow = notesSheet.getLastRow();
-  const lastCol = notesSheet.getLastColumn();
-  if (lastRow > 0 && lastCol > 0) {
-    notesSheet.getRange(1, 1, lastRow, Math.max(lastCol, NOTES_COLUMNS)).breakApart();
-  }
-
-  notesSheet.clearContents();
-  notesSheet.clearFormats();
-  notesSheet.clearNotes();
-
-  const rows = [];
-  const sections = [];
-
-  dayOrder.forEach(day => {
-    const entries = dayMap[day] || [];
-    if (!entries.length) return;
-
-    const headerRow = rows.length + 1;
-    rows.push([day, "", ""]);
-
-    const tableHeaderRow = rows.length + 1;
-    rows.push(["Venue:", "Notes:", ""]);
-
-    const firstEntryRow = rows.length + 1;
-    entries.forEach(entry => {
-      rows.push([entry.venue, entry.notes, ""]);
-    });
-
-    rows.push(["", "", ""]);
-
-    sections.push({
-      headerRow,
-      tableHeaderRow,
-      firstEntryRow,
-      entryCount: entries.length
-    });
+    throw new Error("Unsupported action.");
   });
-
-  if (!rows.length) {
-    notesSheet.setFrozenRows(0);
-    notesSheet.setColumnWidth(1, 220);
-    notesSheet.setColumnWidth(2, 520);
-    notesSheet.setColumnWidth(3, 40);
-    return;
-  }
-
-  notesSheet.getRange(1, 1, rows.length, NOTES_COLUMNS).setValues(rows);
-
-  sections.forEach(section => {
-    const dayRange = notesSheet.getRange(section.headerRow, 1, 1, 2);
-    dayRange.breakApart();
-    dayRange.merge();
-    dayRange
-      .setFontWeight("bold")
-      .setFontSize(13)
-      .setHorizontalAlignment("center")
-      .setVerticalAlignment("middle")
-      .setBackground("#c7d2fe")
-      .setFontColor("#111827");
-    notesSheet.setRowHeightsForced(section.headerRow, 1, 30);
-
-    notesSheet.getRange(section.tableHeaderRow, 1, 1, 2)
-      .setFontWeight("bold")
-      .setBackground("#e5e7eb");
-
-    notesSheet.getRange(section.firstEntryRow, 2, section.entryCount, 1)
-      .setWrap(true)
-      .setVerticalAlignment("top");
-
-    notesSheet.getRange(section.firstEntryRow, 1, section.entryCount, 1)
-      .setFontWeight("bold")
-      .setBackground("#eef6ff")
-      .setVerticalAlignment("middle");
-
-    for (let i = 0; i < section.entryCount; i++) {
-      const row = section.firstEntryRow + i;
-      const bg = (i % 2 === 0) ? "#ffffff" : "#f8fafc";
-      notesSheet.getRange(row, 2, 1, 1).setBackground(bg);
-    }
-
-    notesSheet.getRange(section.tableHeaderRow, 1, section.entryCount + 1, 2)
-      .setBorder(true, true, true, true, true, true);
-  });
-
-  notesSheet.setFrozenRows(1);
-  notesSheet.setColumnWidth(1, 220);
-  notesSheet.setColumnWidth(2, 520);
-  notesSheet.setColumnWidth(3, 40);
-}
-
-function syncNotesLog(ss, dateValue, venueValue, notesValue) {
-  const targetDate = toISODate(dateValue);
-  const targetDay = normalizeDayLabel(targetDate || dateValue);
-  const venue = String(venueValue || "").trim();
-  const venueKey = venue.toLowerCase();
-  const notes = String(notesValue || "").trim();
-
-  if (!targetDay || !venueKey) return;
-
-  const notesSheet = getMonthlyNotesSheet(ss, targetDate || dateValue);
-  const model = readNotesModel(notesSheet);
-  const dayMap = model.dayMap;
-  const dayOrder = model.dayOrder;
-
-  if (dayMap[targetDay]) {
-    dayMap[targetDay] = dayMap[targetDay].filter(entry => entry.venueKey !== venueKey);
-    if (!dayMap[targetDay].length) {
-      delete dayMap[targetDay];
-      const idx = dayOrder.indexOf(targetDay);
-      if (idx >= 0) dayOrder.splice(idx, 1);
-    }
-  }
-
-  if (notes) {
-    upsertDayEntry(dayMap, dayOrder, targetDay, venue, notes);
-  }
-
-  rewriteNotesSheet(notesSheet, dayMap, dayOrder);
 }
 
 function doPost(e) {
@@ -972,7 +365,8 @@ function doPost(e) {
         managerName,
         authToken: session.authToken,
         expiresAt: session.expiresAt,
-        personalEarningsProfile: getPersonalEarningsProfile(managerName)
+        personalEarningsProfile: getPersonalEarningsProfile(managerName),
+        ...getEarningsTrackerAccess(managerName)
       });
     }
 
@@ -983,191 +377,17 @@ function doPost(e) {
       return createJsonResponse({
         ok: true,
         valid,
-        personalEarningsProfile: valid ? getPersonalEarningsProfile(managerName) : null
+        personalEarningsProfile: valid ? getPersonalEarningsProfile(managerName) : null,
+        ...(valid ? getEarningsTrackerAccess(managerName) : {})
       });
     }
 
-    if (action === "fetchToastStaff") {
-      throw new Error("Time-card import is disabled. Enter staff and hours manually.");
+    if (/^tracker[A-Z]/.test(action)) {
+      const managerName = requireEarningsTrackerOwner(payload);
+      return createJsonResponse({ ok: true, ...handleEarningsTrackerAction(action, payload, managerName) });
     }
 
-    const managerName = requireValidManagerAuth(payload);
-    payload.managerName = managerName;
-
-    const targetDate = getBusinessDateISO(payload.submittedAt, payload.date);
-    const targetVenue = String(payload.venue || "").trim().toLowerCase();
-    const notes = String(payload.notes || "").trim();
-
-    const ss = SpreadsheetApp.openById(SHEET_ID);
-    const sheet = getMonthlySheet(ss, targetDate || payload.date);
-
-    const maxCols = sheet.getMaxColumns();
-    if (maxCols < BLOCK_COLUMNS) {
-      sheet.insertColumnsAfter(maxCols, BLOCK_COLUMNS - maxCols);
-    }
-
-    const roleSortRank = {
-      "Shift Manager": 0,
-      "Bartender": 1
-    };
-
-    const entries = (Array.isArray(payload.entries) ? payload.entries : [])
-      .slice()
-      .sort((a, b) => {
-        const aRole = String(a && a.role ? a.role : "").trim();
-        const bRole = String(b && b.role ? b.role : "").trim();
-        const aRank = Object.prototype.hasOwnProperty.call(roleSortRank, aRole) ? roleSortRank[aRole] : 99;
-        const bRank = Object.prototype.hasOwnProperty.call(roleSortRank, bRole) ? roleSortRank[bRole] : 99;
-        if (aRank !== bRank) return aRank - bRank;
-        return 0;
-      });
-    const hasNotes = notes.length > 0;
-    const detailRows = buildReceiptDetailRows(payload, entries);
-
-    const rows = [
-      [payload.venue || "", targetDate || payload.date || "", "", ""],
-      ["Total Pot:", moneyWhole(payload.totalPot), "Notes", hasNotes ? "✓" : "✗"],
-      ["Role", "Name", "Hours", "Tipout"],
-      ...detailRows,
-      ["", "", "", ""]
-    ];
-
-    const newBlockHeight = rows.length;
-
-    let blocks = findReceiptBlocks(sheet);
-    if (blocks.some(block => block.row === 1)) {
-      sheet.insertRowBefore(1);
-      blocks = findReceiptBlocks(sheet);
-    }
-    const dateSections = buildDateSections(blocks);
-
-    let replacedRows = 0;
-    let startRow = 2;
-    let startCol = 1;
-
-    const existingBlock = blocks.find(
-      block => block.date === targetDate && block.venueKey === targetVenue
-    );
-
-    const dateSection = dateSections.find(section => section.date === targetDate);
-
-    if (existingBlock) {
-      startRow = existingBlock.row;
-      startCol = existingBlock.col;
-      replacedRows = existingBlock.height;
-    } else if (dateSection) {
-      startRow = dateSection.bottomRow + VENUE_GAP + 1;
-      startCol = dateSection.col;
-    } else {
-      if (dateSections.length) {
-        const rightmost = dateSections[dateSections.length - 1];
-        startCol = rightmost.col + BLOCK_COLUMNS + DATE_SECTION_GAP;
-      } else {
-        startCol = 1;
-      }
-      startRow = 2;
-    }
-
-    const neededCols = startCol + BLOCK_COLUMNS - 1;
-    if (sheet.getMaxColumns() < neededCols) {
-      sheet.insertColumnsAfter(sheet.getMaxColumns(), neededCols - sheet.getMaxColumns());
-    }
-
-    if (existingBlock) {
-      if (newBlockHeight > existingBlock.height) {
-        sheet.insertRowsAfter(startRow + existingBlock.height - 1, newBlockHeight - existingBlock.height);
-      }
-      sheet.getRange(startRow, startCol, existingBlock.height, BLOCK_COLUMNS).clearContent().clearFormat();
-    }
-
-    const dayLabelRange = sheet.getRange(1, startCol, 1, BLOCK_COLUMNS);
-    dayLabelRange.breakApart();
-    dayLabelRange.merge();
-    dayLabelRange.setValue(formatDayLabel(targetDate || payload.date));
-    dayLabelRange
-      .setFontWeight("bold")
-      .setHorizontalAlignment("center")
-      .setBackground("#c7d2fe")
-      .setFontColor("#111827");
-
-    sheet.getRange(startRow, startCol, rows.length, BLOCK_COLUMNS).setValues(rows);
-
-    sheet.getRange(startRow, startCol, 1, 2)
-      .setFontWeight("bold")
-      .setBackground("#dbeafe");
-    sheet.getRange(startRow, startCol + 2, 1, 2)
-      .setBackground(null)
-      .setFontWeight("normal");
-
-    sheet.getRange(startRow + 1, startCol, 1, 2)
-      .setFontWeight("bold")
-      .setFontColor("#ffffff")
-      .setBackground("#16a34a");
-    sheet.getRange(startRow + 1, startCol + 2, 1, 1)
-      .setFontWeight("bold")
-      .setBackground("#f3f4f6")
-      .setFontColor("#111827")
-      .setNote("Legend: ✓ = notes submitted, ✗ = no notes submitted");
-    const notesFlagCell = sheet.getRange(startRow + 1, startCol + 3, 1, 1);
-    notesFlagCell
-      .setFontWeight("bold")
-      .setHorizontalAlignment("center")
-      .setFontColor(hasNotes ? "#166534" : "#991b1b")
-      .setBackground(hasNotes ? "#dcfce7" : "#fee2e2");
-
-    sheet.getRange(startRow + 2, startCol, 1, BLOCK_COLUMNS)
-      .setFontWeight("bold")
-      .setBackground("#eef2ff");
-
-    const detailCount = detailRows.length;
-    sheet.getRange(startRow + 2, startCol, detailCount + 1, BLOCK_COLUMNS)
-      .setBorder(true, true, true, true, true, true);
-
-    sheet.getRange(startRow + 3, startCol + 2, detailCount, 1).setHorizontalAlignment("right");
-    sheet.getRange(startRow + 3, startCol + 3, detailCount, 1).setHorizontalAlignment("right");
-
-    sheet.getRange(startRow + 1, startCol + 1, 1, 1).setHorizontalAlignment("right");
-
-    sheet.setColumnWidth(startCol, 190);
-    sheet.setColumnWidth(startCol + 1, 120);
-    sheet.setColumnWidth(startCol + 2, 110);
-    sheet.setColumnWidth(startCol + 3, 90);
-
-    sheet.setFrozenRows(1);
-
-    syncNotesLog(ss, targetDate || payload.date, payload.venue || "", notes);
-
-    if (hasNotes) {
-      const notesLink = getNotesEntryLink(ss, targetDate || payload.date, payload.venue || "");
-      if (notesLink && notesLink.linkUrl) {
-        notesFlagCell.setFormula(`=HYPERLINK("${notesLink.linkUrl}","✓")`);
-      } else {
-        notesFlagCell.setValue("✓");
-      }
-    } else {
-      notesFlagCell.setValue("✗");
-    }
-
-    if (existingBlock && newBlockHeight < existingBlock.height) {
-      const rowsToDelete = existingBlock.height - newBlockHeight;
-      sheet.deleteRows(startRow + newBlockHeight, rowsToDelete);
-    }
-
-    normalizeDateSectionVenueOrder(sheet, targetDate || payload.date);
-
-    sheet.autoResizeColumns(startCol, BLOCK_COLUMNS);
-    styleDateSectionSeparators(sheet);
-
-    syncReceiptFinder(
-      ss,
-      targetDate || payload.date,
-      payload.venue || "",
-      sheet.getSheetId(),
-      startCol,
-      startRow
-    );
-
-    return createJsonResponse({ ok: true, rowsWritten: rows.length, replacedRows });
+    throw new Error("Unsupported action.");
   } catch (err) {
     return createJsonResponse({ ok: false, error: String(err) });
   }

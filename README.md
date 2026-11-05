@@ -6,13 +6,13 @@ web server; there is no compilation or application build step.
 ## Tips and wedding guarantees
 
 - **Total Tip Pot** remains the cash pot. Credit Tips and Number of Guests are
-  optional and update the preview immediately; edits do not send receipts.
+  optional and update the preview immediately.
 - Cash and credit use the same time cards: shift managers and bartenders share
   tips by hours; trainees are not included. Cash hourly rates keep their existing
   cent rounding; individual cash payouts now round UP to whole dollars. Cash is
   displayed without decimals.
   Any extra cash needed above the pot (or cash still unallocated) is explicitly
-  shown in the results and receipt; it is not silently taken from credit tips.
+  shown in the results; it is not silently taken from credit tips.
   Credit inputs accept cents and retain them in drafts. Credit and paycheck
   allocations use the same role/hour weights without rounding the hourly rate
   before allocation. Whole cents are assigned by largest fractional remainder
@@ -23,15 +23,16 @@ web server; there is no compilation or application build step.
 - The event-wide guarantee is $4 per guest. Its shortage is the nonnegative
   difference between that minimum and actual cash plus credit payouts. Blank
   guests disable the guarantee; zero guests explicitly enables a $0 guarantee.
-  Invalid guest counts show a validation error and cannot be submitted.
+  Invalid guest counts show a validation error.
 - Additional paycheck shares use the same shift-manager and bartender time cards and cent distribution.
   The guarantee compares actual rounded-up cash payouts plus exact credit
   payouts, not formatted hourly rates. Extra cash needed for rounding is part
   of these actual cash payouts and must be funded separately. Paycheck amounts
   retain cents. With no eligible staff, unallocated money remains explicit.
 - Drafts retain optional inputs; Reset clears them. Existing drafts still work.
-- **Calculate & Send Receipt** retains the manager, venue, name, and time-card
-  requirements. It sends the current preview only when explicitly clicked.
+- Results are a live preview only. The Google Sheets receipt system (the old
+  **Calculate & Send Receipt** button and notes field) has been removed; the
+  calculator no longer sends or writes event receipts anywhere.
 
 ## Login and venue loading
 
@@ -102,18 +103,50 @@ fresh, user-initiated download. Sharing never automatically selects a recipient
 or sends a receipt.
 
 The profile is fetched only through authenticated login/session validation,
-is not saved in drafts, is not added to shared receipts, and is cleared when the
+is not saved in drafts, and is cleared when the
 session is cleared. Other accounts do not receive the profile. The updated
 Apps Script deployment is required before this section can appear.
 
-## Receipt deployment
+## Private earnings tracker (Will Schreiner only)
 
-The receipt handler in [google-apps-script.gs](google-apps-script.gs) retains the
-existing four-column cash receipt and adds credit details, the event guarantee,
-and paycheck shares when provided. After publishing the updated static page,
-update and redeploy the existing Google Apps Script web app as well. If the
-deployment URL changes, update `RECEIPT_ENDPOINT` in [index.html](index.html).
-An older backend will ignore the new optional receipt fields.
+The backend offers the tracker only to Will Schreiner's PIN-authenticated
+session. Every tracker request is checked on the server against a valid session
+for that account; other managers, a staff row named "Will Schreiner", or values
+changed in the browser cannot read or change the data. For other accounts the
+backend returns no tracker flag and the page never creates the tracker controls.
+(The page's public JavaScript source does contain the tracker code, as it does
+the existing personal earnings code; the data itself is only served to Will.)
+
+- **Save My Shift** (in Will's personal earnings section) saves the current
+  shift: date, venue, hours, hourly wages, cash tips, credit tips, and any tip
+  minimum share. Totals are recalculated on the server using the same rate,
+  rounding, and estimated withholding as the calculator. The shift date defaults
+  to today, and a shift saved before 3 AM counts toward the previous day.
+- One shift is kept per date and venue. Saving again asks before replacing it.
+  Shifts can be opened for a breakdown, edited (date, hours, tips, tip minimum),
+  or deleted.
+- Shifts are grouped into two-week pay periods starting Monday, Oct 12, 2026
+  (Oct 12?25, Oct 26?Nov 8, and so on), in date order. The current period is
+  shown by default; earlier periods remain available from the period menu and
+  are never deleted automatically.
+- Each period shows total hours, total before tax, total after estimated tax,
+  and an **estimated paycheck deposit** (after-tax total minus cash tips already
+  received). An optional actual paycheck amount can be saved and compared.
+- Data is stored in a private Google Sheet, "TwoBirds Tipout - Private Earnings
+  Tracker", that the Apps Script creates in the deploying (Will's) Google Drive
+  on first use. It is not stored in the browser, so it persists across devices,
+  browser restarts, and Reset.
+
+To change the pay schedule, update `PAY_PERIOD_ANCHOR` (any period start date)
+and `PAY_PERIOD_DAYS` in [google-apps-script.gs](google-apps-script.gs).
+
+## Backend deployment
+
+[google-apps-script.gs](google-apps-script.gs) handles manager PIN login,
+session validation, and the private earnings tracker. After changing it, update
+the existing Google Apps Script web app deployment to a new version so the URL
+stays the same. If the deployment URL changes, update `BACKEND_ENDPOINT` in
+[index.html](index.html).
 
 ## Verification
 
@@ -125,12 +158,13 @@ npm test
 ```
 
 Tests compile-check both production scripts, verify the role/hour allocations,
-cash rounding and cent reconciliation, verify receipt row data, parse generated
+cash rounding and cent reconciliation, run the backend against an in-memory
+spreadsheet to verify PIN login and tracker authorization, parse generated
 PDFs for single-page content and totals, and exercise the real page in a
-headless browser, including live inputs, drafts, reset, send authorization, and
+headless browser, including live inputs, drafts, reset, the tracker, and
 320px/390px/720px layouts. Browser tests use an existing Chrome or Edge on Windows.
 Elsewhere, run `npx playwright install chromium`, or set
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an installed Chromium-based browser.
-External requests are blocked or intercepted; tests do not send live receipts
-or access manager/Toast services. Live Apps Script deployment and spreadsheet
+External requests are blocked or intercepted; tests do not contact the live
+Apps Script backend. Live Apps Script deployment and spreadsheet
 integration require separate verification after redeployment.
