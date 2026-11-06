@@ -184,3 +184,12 @@ test("Renee's wages use her role-specific hourly rates and shared tax estimate",
   }, profile);
   assert.match(unsupported.error, /No hourly rate is set for your Server shift/);
 });
+
+test("the backend recalculates saved shifts with the exact same tip and earnings code as the page", () => {
+  const backend = fs.readFileSync(path.join(root, "google-apps-script.gs"), "utf8").replace(/\r\n/g, "\n");
+  const page = script.replace(/\r\n/g, "\n");
+  const pageCalculations = page.slice(page.indexOf("function calculateTipPool("), page.indexOf("const VENUES")).trim();
+  const start = backend.indexOf("// BEGIN SHARED TIP CALCULATIONS");
+  const backendCalculations = backend.slice(backend.indexOf("\n", start) + 1, backend.indexOf("// END SHARED TIP CALCULATIONS")).trim();
+  assert.equal(backendCalculations, pageCalculations);
+});

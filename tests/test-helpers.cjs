@@ -64,8 +64,14 @@ class FakeSpreadsheet {
   }
 }
 
-function loadBackend({ properties = new Map(), spreadsheets = [] } = {}) {
+function loadBackend({ properties = new Map(), spreadsheets = [], connectEarnings = true } = {}) {
   let uuid = 0;
+  if (connectEarnings && !properties.has("WILLS_EARNINGS_SPREADSHEET_ID")) {
+    const data = new FakeSpreadsheet("Will's Earnings - Private Data", `earnings-${spreadsheets.length + 1}`);
+    spreadsheets.push(data);
+    properties.set("WILLS_EARNINGS_SPREADSHEET_ID", data.id);
+    properties.set("WILLS_EARNINGS_URL", "https://script.google.com/macros/s/test-earnings-site/exec");
+  }
   const context = vm.createContext({
     ContentService: {
       MimeType: { JSON: "json" },
@@ -75,7 +81,8 @@ function loadBackend({ properties = new Map(), spreadsheets = [] } = {}) {
       getScriptProperties: () => ({
         getProperty: key => properties.has(key) ? properties.get(key) : null,
         setProperty: (key, value) => properties.set(key, String(value)),
-        deleteProperty: key => properties.delete(key)
+        deleteProperty: key => properties.delete(key),
+        getProperties: () => Object.fromEntries(properties)
       })
     },
     SpreadsheetApp: {
@@ -100,7 +107,8 @@ function loadBackend({ properties = new Map(), spreadsheets = [] } = {}) {
   });
   vm.runInContext(fs.readFileSync(path.join(root, "google-apps-script.gs"), "utf8"), context);
   const post = payload => JSON.parse(context.doPost({ postData: { contents: JSON.stringify(payload) } }).text);
-  return { context, post, properties, spreadsheets };
+  const earningsData = () => spreadsheets.find(item => item.id === properties.get("WILLS_EARNINGS_SPREADSHEET_ID"));
+  return { context, post, properties, spreadsheets, earningsData };
 }
 
-module.exports = { root, html, script, loadCalculations, loadBackend };
+module.exports = { root, html, script, loadCalculations, loadBackend, FakeSpreadsheet };

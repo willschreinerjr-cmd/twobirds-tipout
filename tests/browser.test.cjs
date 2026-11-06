@@ -695,12 +695,21 @@ test("authentication requests retain a bounded timeout", async t => {
 async function useFakeBackend(page) {
   const backend = loadBackend();
   const requests = [];
+  let available = true;
   await page.route("https://script.google.com/**", async route => {
     const payload = route.request().postDataJSON();
     requests.push(payload);
+    if (!available) return route.abort();
     await route.fulfill({ json: backend.post(payload) });
   });
-  return { backend, requests };
+  return { backend, requests, setAvailable: value => { available = value; } };
+}
+
+function storedShifts(backend) {
+  const sheet = backend.earningsData().getSheetByName("Shifts");
+  if (!sheet) return [];
+  const [header, ...rows] = sheet.rows;
+  return rows.map(row => Object.fromEntries(header.map((column, index) => [column, row[index]])));
 }
 
 async function signInAs(page, pin, staff) {
@@ -709,7 +718,7 @@ async function signInAs(page, pin, staff) {
     authenticatedManagerName = auth.managerName;
     authenticatedManagerToken = auth.authToken;
     personalEarningsProfile = auth.personalEarningsProfile;
-    setEarningsTrackerAccess(auth.earningsTracker);
+    setEarningsTrackerAccess(auth.earningsTracker, auth.earningsSiteUrl);
     document.getElementById("staffBody").innerHTML = "";
     staff.forEach(([role, name, hours]) => addStaff(role, name, hours, false));
     document.getElementById("venueSelect").value = "Ivy House";
@@ -719,116 +728,68 @@ async function signInAs(page, pin, staff) {
   }, { pin, staff });
 }
 
-async function trackerRows(page) {
-  return page.locator("#trackerShifts tbody tr.tracker-shift").evaluateAll(rows =>
-    rows.map(row => [...row.cells].map(cell => cell.textContent.trim()))
-  );
-}
-
-async function saveShift(page, date, dialogResponse) {
-  await page.locator("#saveShiftDate").fill(date);
-  if (dialogResponse !== undefined) {
-    page.once("dialog", dialog => dialogResponse ? dialog.accept() : dialog.dismiss());
-  }
+async function saveShift(page, date) {
+  if (date) await page.locator("#saveShiftDate").fill(date);
   await page.locator("#saveMyShift").click();
   await page.waitForFunction(() => !/Saving/.test(document.getElementById("saveShiftStatus").textContent));
   return page.locator("#saveShiftStatus").textContent();
 }
 
-test("Will saves shifts into two-week pay periods with totals, corrections, and paycheck comparison", async t => {
+test("Save My Shift sends Will's event inputs once, retries safely, and never stores history in the calculator", async t => {
   const page = await openCalculator(t, 390);
-  const { backend } = await useFakeBackend(page);
+  const { backend, requests, setAvailable } = await useFakeBackend(page);
   await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
-  await page.locator("#earningsTracker").waitFor();
-  await page.waitForFunction(() => !document.getElementById("trackerPeriodSelect").disabled);
-  assert.match(await page.locator("#trackerShifts").textContent(), /No shifts saved in this pay period yet/);
+  await page.locator("#saveMyShift").waitFor();
+  assert.equal(await page.locator("#openEarningsSite").getAttribute("href"), "https://script.google.com/macros/s/test-earnings-site/exec");
+  assert.equal(await page.locator("#earningsTracker, #trackerShifts, #trackerSummary").count(), 0, "no dashboard in the calculator");
   assert.equal(await page.locator("#saveShiftDate").inputValue(), await page.evaluate(() => businessDateISO()));
   assert.equal(await page.evaluate(() => businessDateISO(new Date(2026, 10, 6, 2, 30))), "2026-11-05");
   assert.equal(await page.evaluate(() => businessDateISO(new Date(2026, 10, 6, 3, 0))), "2026-11-06");
 
   await fill(page, "pot", "200");
   await fill(page, "creditPot", "100");
-  assert.match(await saveShift(page, "2026-11-05"), /Saved your Nov 5 shift: \$225\.00 before tax/);
-  await text(page, "trackerPeriodTitle", "PAY PERIOD: OCT 26 \u2013 NOV 8");
-  assert.deepEqual(await trackerRows(page), [["Nov 5", "5.0", "$225.00", "$178.32"]]);
+  assert.equal(await saveShift(page, "2026-11-05"), "Saved your Nov 5 shift to Will's Earnings: $225.00 before tax.");
+  const sent = requests.filter(request => request.action === "saveEarningsShift");
+  assert.equal(sent.length, 1);
+  assert.deepEqual(Object.keys(sent[0].event).sort(), ["cashPot", "creditPot", "guestCount", "isWedding", "shiftDate", "staff", "venue"]);
+  assert.deepEqual(sent[0].event.staff.map(row => row.name), ["Will Schreiner", "Staff 2"], "coworker names are not sent");
+  assert.equal(JSON.stringify(sent[0]).includes("withholding"), false);
 
-  assert.match(await saveShift(page, "2026-11-05", false), /Not saved/);
-  await fill(page, "guestCount", "100");
-  await text(page, "personalGross", "$275.00");
-  assert.match(await saveShift(page, "2026-11-05", true), /Updated your Nov 5 shift: \$275\.00/);
-  assert.deepEqual(await trackerRows(page), [["Nov 5", "5.0", "$275.00", "$217.94"]]);
-  assert.equal(backend.spreadsheets[0].getSheetByName("Shifts").rows.length, 2, "header plus one shift");
+  assert.equal(await saveShift(page), "This Nov 5 shift is already saved in Will's Earnings.");
+  assert.equal(storedShifts(backend).length, 1);
 
-  await fill(page, "guestCount", "");
-  await saveShift(page, "2026-10-27");
-  await saveShift(page, "2026-11-09");
-  await text(page, "trackerPeriodTitle", "PAY PERIOD: NOV 9 \u2013 NOV 22");
-  await page.locator("#trackerPeriodSelect").selectOption("2026-10-26");
-  assert.deepEqual(await trackerRows(page), [
-    ["Oct 27", "5.0", "$225.00", "$178.32"],
-    ["Nov 5", "5.0", "$275.00", "$217.94"]
-  ]);
-  assert.deepEqual(
-    await page.locator("#trackerShifts tfoot th").allTextContents(),
-    ["TOTAL", "10.0", "$500.00", "$396.26"]
-  );
-  const summary = await page.locator("#trackerSummary").textContent();
-  assert.match(summary, /TOTAL HOURS WORKED\s*10\.0/);
-  assert.match(summary, /TOTAL EARNINGS BEFORE TAX\s*\$500\.00/);
-  assert.match(summary, /TOTAL EARNINGS AFTER ESTIMATED TAX\s*\$396\.26/);
-  assert.match(summary, /Cash tips already received\s*\u2212\$200\.00/);
-  assert.match(summary, /ESTIMATED PAYCHECK DEPOSIT\s*\$196\.26/);
+  await fill(page, "pot", "300");
+  setAvailable(false);
+  assert.match(await saveShift(page), /Couldn't save your shift: .*Your calculator inputs are unchanged/);
+  assert.equal(await page.locator("#pot").inputValue(), "$300");
+  await text(page, "cashTotal", "$300");
+  assert.equal(await page.locator("#saveMyShift").isEnabled(), true);
+  setAvailable(true);
+  assert.match(await saveShift(page), /Saved your Nov 5 shift to Will's Earnings: \$275\.00 before tax/);
+  const keys = requests.filter(request => request.action === "saveEarningsShift").map(request => request.idempotencyKey);
+  assert.equal(keys[0], keys[1], "an unchanged shift reuses its key");
+  assert.equal(keys[2], keys[3], "a failed save retries with the same key");
+  assert.notEqual(keys[0], keys[2]);
+  assert.equal(storedShifts(backend).length, 2);
 
-  await page.locator("#trackerShifts button", { hasText: "Nov 5" }).click();
-  const detail = await page.locator(".tracker-detail").textContent();
-  for (const expected of [/Ivy House/, /Hourly wages\s*\$75\.00/, /Cash tips\s*\$100\.00/, /Credit tips\s*\$50\.00/, /Tip minimum owed\s*\$50\.00/]) {
-    assert.match(detail, expected);
-  }
-  await page.locator(".tracker-detail button", { hasText: "Edit" }).click();
-  await page.locator(".tracker-edit input[name=hours]").fill("4");
-  await page.locator(".tracker-edit button[type=submit]").click();
-  await page.waitForFunction(() => document.getElementById("trackerStatus").textContent === "Shift updated.");
-  assert.deepEqual((await trackerRows(page))[1], ["Nov 5", "4.0", "$260.00", "$206.05"]);
-
-  await page.locator("#trackerShifts button", { hasText: "Oct 27" }).click();
-  page.once("dialog", dialog => dialog.accept());
-  await page.locator(".tracker-detail button", { hasText: "Delete" }).click();
-  await page.waitForFunction(() => document.getElementById("trackerStatus").textContent === "Shift deleted.");
-  assert.deepEqual(await trackerRows(page), [["Nov 5", "4.0", "$260.00", "$206.05"]]);
-
-  await page.locator("#trackerActualPaycheck").fill("250");
-  await page.locator(".tracker-paycheck button").click();
-  await page.waitForFunction(() => document.getElementById("trackerStatus").textContent === "Actual paycheck saved.");
-  assert.match(await page.locator("#trackerSummary").textContent(), /ESTIMATED PAYCHECK DEPOSIT\s*\$106\.05/);
-  await text(page, "trackerPaycheckCompare", "Your actual paycheck was $143.95 more than estimated.");
-
-  for (const width of [320, 720]) {
-    await page.setViewportSize({ width, height: 900 });
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= width, `no page overflow at ${width}`);
-  }
-
-  const storage = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
-  assert.doesNotMatch(storage, /260\.00|206\.05|trackerShift|Shifts/);
+  await page.reload();
   await page.evaluate(() => {
-    const name = authenticatedManagerName;
-    const token = authenticatedManagerToken;
-    clearEarningsTracker();
-    authenticatedManagerName = name;
-    authenticatedManagerToken = token;
-    setEarningsTrackerAccess(true);
-    updateResults();
+    document.getElementById("pinGate").style.display = "none";
+    document.body.classList.remove("pin-gate-active");
+    document.body.style.overflow = "";
   });
-  await page.waitForFunction(() => document.querySelectorAll("#trackerPeriodSelect option").length > 0);
-  await page.locator("#trackerPeriodSelect").selectOption("2026-10-26");
-  assert.deepEqual(await trackerRows(page), [["Nov 5", "4.0", "$260.00", "$206.05"]], "history reloads from the server");
-  assert.equal(await page.locator("#trackerActualPaycheck").inputValue(), "250.00");
-
+  await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
+  assert.equal(await page.locator("#pot").inputValue(), "$300");
+  assert.equal(await saveShift(page, "2026-11-05"), "This Nov 5 shift is already saved in Will's Earnings.",
+    "a retry after reloading the page is recognized");
+  assert.equal(storedShifts(backend).length, 2);
+  const storage = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
+  assert.doesNotMatch(storage, /22500|27500|grossCents|Shifts|idempotency/);
   await page.evaluate(() => clearManagerSessionStorage());
-  assert.equal(await page.locator("#earningsTracker").count(), 0);
   assert.equal(await page.locator("#saveShiftControls").count(), 0);
 });
 
-test("the earnings tracker never appears or loads for anyone except Will's verified account", async t => {
+test("Save My Shift never appears or works for anyone except Will's verified account", async t => {
   const page = await openCalculator(t, 390);
   const { requests } = await useFakeBackend(page);
   const willStaff = [["Shift Manager", "Will Schreiner", "5"]];
@@ -836,52 +797,40 @@ test("the earnings tracker never appears or loads for anyone except Will's verif
 
   const renee = await signInAs(page, "1212", [["Bartender", "Renee Ehlers", "3"], ...willStaff]);
   assert.equal(await page.locator("#personalEarnings").isVisible(), true);
-  await page.waitForTimeout(150);
-  assert.equal(await page.locator("#earningsTracker, #saveShiftControls, #saveMyShift").count(), 0);
-  assert.doesNotMatch(await page.locator("body").innerText(), /Pay Period|Save My Shift|Paycheck Deposit/i);
+  assert.equal(await page.locator("#saveShiftControls, #saveMyShift, #openEarningsSite").count(), 0);
+  assert.doesNotMatch(await page.locator("body").innerText(), /Save My Shift|Will's Earnings|Pay Period/i);
 
   const jake = await signInAs(page, "2334", willStaff);
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);
-  await page.waitForTimeout(150);
-  assert.equal(await page.locator("#earningsTracker, #saveShiftControls").count(), 0);
+  assert.equal(await page.locator("#saveShiftControls").count(), 0);
 
   await page.evaluate(() => {
     personalEarningsProfile = { owner: "Will Schreiner", hourlyRate: 15, withholdingRate: 0.2 };
     earningsTrackerEnabled = true;
     updateResults();
   });
-  assert.equal(await page.locator("#earningsTracker").count(), 0, "a browser-side flag alone cannot unlock the tracker");
+  assert.equal(await page.locator("#saveShiftControls").count(), 0, "a browser-side flag alone cannot unlock saving");
+  assert.ok(requests.every(request => request.action !== "saveEarningsShift"), "no save requests for other accounts");
 
-  assert.ok(requests.every(request => !String(request.action).startsWith("tracker")), "no tracker requests for other accounts");
-  for (const session of [renee, jake]) {
-    const error = await page.evaluate(async ({ authToken }) => {
-      try {
-        await postToAppsScript(BACKEND_ENDPOINT, { action: "trackerList", managerName: "Will Schreiner", authToken });
-        return "allowed";
-      } catch (err) {
-        return err.message;
-      }
-    }, session);
-    assert.match(error, /Invalid auth session/);
-  }
-  const ownName = await page.evaluate(async ({ authToken }) => {
+  const attempt = (session, managerName) => page.evaluate(async ({ authToken, managerName }) => {
     try {
-      await postToAppsScript(BACKEND_ENDPOINT, { action: "trackerList", managerName: "Jake Faapito", authToken });
+      await postToAppsScript(BACKEND_ENDPOINT, { action: "saveEarningsShift", managerName, authToken, idempotencyKey: "forged-attempt-0001", event: {} });
       return "allowed";
     } catch (err) {
       return err.message;
     }
-  }, jake);
-  assert.match(ownName, /Unsupported action/);
+  }, { ...session, managerName });
+  for (const session of [renee, jake]) assert.match(await attempt(session, "Will Schreiner"), /Invalid auth session/);
+  assert.match(await attempt(jake, "Jake Faapito"), /Unsupported action/);
 });
 
 test("non-wedding events never receive the $4-per-guest guarantee, even with a guest count entered", async t => {
   const page = await openCalculator(t, 390);
-  await useFakeBackend(page);
+  const { backend } = await useFakeBackend(page);
   assert.equal(await page.locator('input[name="isWedding"][value="no"]').isChecked(), true, "defaults to No");
   assert.equal(await page.locator("#guestField").isVisible(), false);
   await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
-  await page.locator("#earningsTracker").waitFor();
+  await page.locator("#saveMyShift").waitFor();
   await fill(page, "pot", "200");
   await fill(page, "creditPot", "100");
 
@@ -906,9 +855,8 @@ test("non-wedding events never receive the $4-per-guest guarantee, even with a g
   assert.deepEqual([earnings.paycheckShare, earnings.gross, earnings.tax, earnings.net], [0, 225, 46.68, 178.32]);
 
   assert.match(await saveShift(page, "2026-11-05"), /\$225\.00 before tax/);
-  const detail = await page.locator(".tracker-detail").textContent();
-  assert.match(detail, /Wedding\s*No/);
-  assert.doesNotMatch(detail, /Tip minimum/);
+  const [saved] = storedShifts(backend);
+  assert.deepEqual([saved.eventType, saved.guaranteeCents, saved.grossCents], ["non-wedding", "0", "22500"]);
 
   await setWedding(page, true);
   await text(page, "personalGross", "$275.00");
@@ -916,7 +864,7 @@ test("non-wedding events never receive the $4-per-guest guarantee, even with a g
   assert.equal(await page.locator("#guestError").isVisible(), true);
   await setWedding(page, false);
   assert.equal(await page.locator("#guestError").isVisible(), false, "a leftover invalid guest count does not block non-weddings");
-  assert.match(await saveShift(page, "2026-11-06"), /Saved your Nov 6 shift: \$225\.00/);
+  assert.match(await saveShift(page, "2026-11-06"), /Saved your Nov 6 shift to Will's Earnings: \$225\.00/);
 
   await page.reload();
   assert.equal(await page.locator('input[name="isWedding"][value="no"]').isChecked(), true);

@@ -113,45 +113,39 @@ is not saved in drafts, and is cleared when the
 session is cleared. Other accounts do not receive the profile. The updated
 Apps Script deployment is required before this section can appear.
 
-## Private earnings tracker (Will Schreiner only)
+## Save My Shift (Will Schreiner only)
 
-The backend offers the tracker only to Will Schreiner's PIN-authenticated
-session. Every tracker request is checked on the server against a valid session
-for that account; other managers, a staff row named "Will Schreiner", or values
-changed in the browser cannot read or change the data. For other accounts the
-backend returns no tracker flag and the page never creates the tracker controls.
-(The page's public JavaScript source does contain the tracker code, as it does
-the existing personal earnings code; the data itself is only served to Will.)
+Will's earnings history lives in a separate private app, **Will's Earnings**
+(repository `wills-earnings`). The calculator only adds a **Save My Shift**
+button and an **Open Will's Earnings** link to Will's personal earnings section;
+it does not store or display earnings history.
 
-- **Save My Shift** (in Will's personal earnings section) saves the current
-  shift: date, venue, wedding status, hours, hourly wages, cash tips, credit
-  tips, and any tip minimum share. The server stores a $0 tip minimum for any
-  shift not marked as a wedding. Shifts saved before wedding status existed keep
-  their recorded earnings and show "Not recorded" until edited. Totals are recalculated on the server using the same rate,
-  rounding, and estimated withholding as the calculator. The shift date defaults
-  to today, and a shift saved before 3 AM counts toward the previous day.
-- One shift is kept per date and venue. Saving again asks before replacing it.
-  Shifts can be opened for a breakdown, edited (date, hours, tips, tip minimum),
-  or deleted.
-- Shifts are grouped into two-week pay periods starting Monday, Oct 12, 2026
-  (Oct 12?25, Oct 26?Nov 8, and so on), in date order. The current period is
-  shown by default; earlier periods remain available from the period menu and
-  are never deleted automatically.
-- Each period shows total hours, total before tax, total after estimated tax,
-  and an **estimated paycheck deposit** (after-tax total minus cash tips already
-  received). An optional actual paycheck amount can be saved and compared.
-- Data is stored in a private Google Sheet, "TwoBirds Tipout - Private Earnings
-  Tracker", that the Apps Script creates in the deploying (Will's) Google Drive
-  on first use. It is not stored in the browser, so it persists across devices,
-  browser restarts, and Reset.
+- The backend offers this only to Will Schreiner's PIN-authenticated session.
+  Other managers, a staff row named "Will Schreiner", or values changed in the
+  browser cannot save shifts; other accounts never receive the button or the
+  site link. (The page's public JavaScript contains the button code, as it does
+  the personal earnings code; nothing private is served to other accounts.)
+- Save My Shift sends the event inputs (tip pots, wedding status, guest count,
+  venue, date, and time-card roles and hours, with coworkers' names replaced by
+  placeholders). The backend recalculates Will's earnings with the same code as
+  the page and the private wage and withholding profile, then writes the shift
+  to Will's private earnings sheet in whole cents. Browser totals are not trusted.
+- Each save carries an idempotency key; retrying an unchanged or failed save
+  reuses it, so a shift is never stored twice. Separate events on the same day
+  can be saved. If Will's Earnings is unavailable, the calculator keeps working,
+  shows the error, and keeps all inputs for a retry.
+- The shift date defaults to today; a shift saved before 3 AM counts toward the
+  previous day. Pay periods, editing, deleting, and paycheck verification are
+  handled in Will's Earnings.
 
-To change the pay schedule, update `PAY_PERIOD_ANCHOR` (any period start date)
-and `PAY_PERIOD_DAYS` in [google-apps-script.gs](google-apps-script.gs).
+The backend reads Script Properties `WILLS_EARNINGS_SPREADSHEET_ID` (Will's
+Earnings data sheet) and `WILLS_EARNINGS_URL` (the site link). Expired manager
+sessions are pruned from Script Properties at each sign-in.
 
 ## Backend deployment
 
 [google-apps-script.gs](google-apps-script.gs) handles manager PIN login,
-session validation, and the private earnings tracker. After changing it, update
+session validation, and Save My Shift. After changing it, update
 the existing Google Apps Script web app deployment to a new version so the URL
 stays the same. If the deployment URL changes, update `BACKEND_ENDPOINT` in
 [index.html](index.html).
@@ -167,9 +161,9 @@ npm test
 
 Tests compile-check both production scripts, verify the role/hour allocations,
 cash rounding and cent reconciliation, run the backend against an in-memory
-spreadsheet to verify PIN login and tracker authorization, parse generated
+spreadsheet to verify PIN login and Save My Shift authorization, parse generated
 PDFs for single-page content and totals, and exercise the real page in a
-headless browser, including live inputs, drafts, reset, the tracker, and
+headless browser, including live inputs, drafts, reset, Save My Shift, and
 320px/390px/720px layouts. Browser tests use an existing Chrome or Edge on Windows.
 Elsewhere, run `npx playwright install chromium`, or set
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an installed Chromium-based browser.

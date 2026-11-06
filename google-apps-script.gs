@@ -39,11 +39,28 @@ function createManagerSession(managerName) {
     throw new Error("Manager name is required for auth session.");
   }
 
+  const props = PropertiesService.getScriptProperties();
+  pruneExpiredManagerSessions(props);
   const token = createAuthToken();
   const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
   const payload = JSON.stringify({ managerName: cleanName, expiresAt });
-  PropertiesService.getScriptProperties().setProperty(authSessionPropertyKey(token), payload);
+  props.setProperty(authSessionPropertyKey(token), payload);
   return { authToken: token, expiresAt };
+}
+
+function pruneExpiredManagerSessions(props) {
+  const now = Date.now();
+  const all = props.getProperties();
+  Object.keys(all).forEach(key => {
+    if (key.indexOf(AUTH_SESSION_KEY_PREFIX) !== 0) return;
+    let expiresAt = 0;
+    try {
+      expiresAt = Number(JSON.parse(all[key]).expiresAt);
+    } catch (err) {
+      expiresAt = 0;
+    }
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) props.deleteProperty(key);
+  });
 }
 
 function readManagerSession(token) {
@@ -106,25 +123,227 @@ function getPersonalEarningsProfile(managerName) {
 }
 
 const EARNINGS_TRACKER_OWNER = "Will Schreiner";
-const TRACKER_SPREADSHEET_PROPERTY = "EARNINGS_TRACKER_SPREADSHEET_ID";
-const TRACKER_SPREADSHEET_NAME = "TwoBirds Tipout - Private Earnings Tracker";
-const PAY_PERIOD_ANCHOR = "2026-10-12";
-const PAY_PERIOD_DAYS = 14;
-const MAX_TRACKER_AMOUNT = 100000;
-const SHIFT_SHEET = "Shifts";
-const PAYCHECK_SHEET = "Paychecks";
-const SHIFT_COLUMNS = [
-  "id", "shiftDate", "venue", "hours", "wages", "cashTips", "creditTips",
-  "tipMinimum", "gross", "tax", "net", "savedAt", "updatedAt", "wedding"
+const WILLS_EARNINGS_SPREADSHEET_PROPERTY = "WILLS_EARNINGS_SPREADSHEET_ID";
+const WILLS_EARNINGS_URL_PROPERTY = "WILLS_EARNINGS_URL";
+const VENUES = ["Ivy House", "Starling", "Rivulet", "PSP", "Society"];
+const STAFF_ROLES = ["Shift Manager", "Bartender"];
+const MAX_EVENT_POT = 1000000;
+const MAX_EVENT_STAFF = 60;
+
+// BEGIN SHARED EARNINGS STORAGE (keep identical in twobirds-tipout/google-apps-script.gs and wills-earnings/src/Code.gs)
+const EARNINGS_SHIFT_SHEET = "Shifts";
+const EARNINGS_SCHEDULE_SHEET = "PaySchedule";
+const EARNINGS_PAYCHECK_SHEET = "Paychecks";
+const EARNINGS_OWNER_SHEET = "Owner";
+const EARNINGS_SHIFT_COLUMNS = [
+  "id", "idempotencyKey", "shiftDate", "venue", "eventType", "role", "hours",
+  "hourlyWageCents", "wageCents", "cashTipsCents", "creditTipsCents", "guaranteeCents",
+  "grossCents", "taxCents", "netCents", "cashReceivedCents", "depositCents",
+  "withholdingRate", "payPeriodStart", "payPeriodEnd", "source", "createdAt", "updatedAt"
 ];
-const PAYCHECK_COLUMNS = ["periodStart", "actualPaycheck", "updatedAt"];
+const EARNINGS_SCHEDULE_COLUMNS = ["startDate", "periodDays", "createdAt"];
+const EARNINGS_PAYCHECK_COLUMNS = [
+  "periodStart", "periodEnd", "status", "actualGrossCents", "actualTaxesCents",
+  "actualDepositCents", "adjustmentsCents", "notes", "updatedAt"
+];
+const EARNINGS_OWNER_COLUMNS = ["ownerId", "createdAt"];
+const EARNINGS_DEFAULT_SCHEDULE = { startDate: "2026-10-12", periodDays: 14 };
+const EARNINGS_INTEGER_FIELDS = [
+  "hourlyWageCents", "wageCents", "cashTipsCents", "creditTipsCents", "guaranteeCents", "grossCents",
+  "taxCents", "netCents", "cashReceivedCents", "depositCents"
+];
+
+function earningsDayNumber(isoDate) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoDate || ""));
+  if (!match) return null;
+  const time = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return new Date(time).toISOString().slice(0, 10) === match[0] ? Math.round(time / 86400000) : null;
+}
+
+function earningsDayToIso(day) {
+  return new Date(day * 86400000).toISOString().slice(0, 10);
+}
+
+function earningsWriteRow(sheet, row, values) {
+  // Plain-text cells keep dates, cents, and IDs exactly as written.
+  sheet.getRange(row, 1, 1, values.length)
+    .setNumberFormat("@")
+    .setValues([values.map(value => value === null || value === undefined ? "" : String(value))]);
+}
+
+function earningsSheet(spreadsheet, name, columns) {
+  let sheet = spreadsheet.getSheetByName(name);
+  if (!sheet) sheet = spreadsheet.insertSheet(name);
+  if (sheet.getLastRow() === 0) {
+    earningsWriteRow(sheet, 1, columns);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function earningsReadRows(sheet, columns) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, columns.length).getValues().map((values, index) => {
+    const record = { row: index + 2 };
+    columns.forEach((column, columnIndex) => { record[column] = String(values[columnIndex]); });
+    return record;
+  });
+}
+
+function earningsSchedules(spreadsheet) {
+  const sheet = earningsSheet(spreadsheet, EARNINGS_SCHEDULE_SHEET, EARNINGS_SCHEDULE_COLUMNS);
+  let schedules = earningsReadRows(sheet, EARNINGS_SCHEDULE_COLUMNS)
+    .map(record => ({ startDate: record.startDate, periodDays: Number(record.periodDays) }))
+    .filter(schedule => earningsDayNumber(schedule.startDate) !== null &&
+      Number.isInteger(schedule.periodDays) && schedule.periodDays > 0);
+  if (!schedules.length) {
+    earningsWriteRow(sheet, sheet.getLastRow() + 1, [
+      EARNINGS_DEFAULT_SCHEDULE.startDate, EARNINGS_DEFAULT_SCHEDULE.periodDays, new Date().toISOString()
+    ]);
+    schedules = [{ ...EARNINGS_DEFAULT_SCHEDULE }];
+  }
+  return schedules.sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+function earningsPayPeriod(schedules, isoDate) {
+  const day = earningsDayNumber(isoDate);
+  if (day === null) throw new Error("Enter a valid date.");
+  let index = 0;
+  schedules.forEach((schedule, scheduleIndex) => {
+    if (earningsDayNumber(schedule.startDate) <= day) index = scheduleIndex;
+  });
+  const schedule = schedules[index];
+  const scheduleStart = earningsDayNumber(schedule.startDate);
+  const start = scheduleStart + Math.floor((day - scheduleStart) / schedule.periodDays) * schedule.periodDays;
+  let end = start + schedule.periodDays - 1;
+  const next = schedules[index + 1];
+  if (next) end = Math.min(end, earningsDayNumber(next.startDate) - 1);
+  return { start: earningsDayToIso(start), end: earningsDayToIso(end) };
+}
+
+function earningsPaychecks(spreadsheet) {
+  const sheet = earningsSheet(spreadsheet, EARNINGS_PAYCHECK_SHEET, EARNINGS_PAYCHECK_COLUMNS);
+  return earningsReadRows(sheet, EARNINGS_PAYCHECK_COLUMNS).filter(record => record.periodStart);
+}
+
+function earningsIsVerifiedPeriod(spreadsheet, periodStart) {
+  return earningsPaychecks(spreadsheet).some(record =>
+    record.periodStart === periodStart && record.status === "verified");
+}
+
+function earningsShiftFromRecord(record) {
+  const shift = {};
+  EARNINGS_SHIFT_COLUMNS.forEach(column => { shift[column] = record[column]; });
+  EARNINGS_INTEGER_FIELDS.forEach(field => { shift[field] = Number(record[field]) || 0; });
+  shift.hours = Number(record.hours) || 0;
+  shift.withholdingRate = Number(record.withholdingRate) || 0;
+  shift.row = record.row;
+  return shift;
+}
+
+function earningsShiftRow(shift) {
+  return EARNINGS_SHIFT_COLUMNS.map(column => shift[column]);
+}
+// END SHARED EARNINGS STORAGE
+
+// BEGIN SHARED TIP CALCULATIONS (copied verbatim from index.html; tests keep them identical)
+function calculateTipPool(pot, people, mode = "cash"){
+  const payoutPeople = people.filter(person =>
+    ["Shift Manager", "Bartender"].includes(person.role) &&
+    Number.isFinite(person.hours) && person.hours > 0
+  );
+  const payoutHours = payoutPeople.reduce((sum, person) => sum + person.hours, 0);
+  const baseRate = payoutHours > 0 ? pot / payoutHours : 0;
+  const entries = payoutHours > 0 ? payoutPeople.map(person => {
+    const rate = mode === "cash" ? Math.round(baseRate * 100) / 100 : baseRate;
+    return { role: person.role, name: person.name, hours: person.hours, rate,
+      tipout: mode === "cash" ? Math.ceil(Number((person.hours * rate).toFixed(10))) : 0 };
+  }) : [];
+  if (mode === "cents" && entries.length) {
+    const cents = Math.round(pot * 100);
+    const shares = entries.map((entry, index) => {
+      const exact = entry.hours * entry.rate * 100;
+      return { index, cents: Math.floor(exact), fraction: exact - Math.floor(exact) };
+    });
+    const remaining = cents - shares.reduce((sum, share) => sum + share.cents, 0);
+    // Largest fractional shares receive leftover cents; original row order breaks ties.
+    const ranked = [...shares].sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+    for (let i = 0; i < remaining; i++) ranked[i % ranked.length].cents++;
+    shares.forEach(share => { entries[share.index].tipout = share.cents / 100; });
+  }
+  return {
+    entries,
+    totalEarned: Math.round(entries.reduce((sum, entry) => sum + entry.tipout, 0) * 100) / 100
+  };
+}
+
+function parseGuestCount(value){
+  const text = String(value).trim();
+  if (!text) return { count: null, error: "" };
+  const count = Number(text);
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(count) || count > Math.floor(Number.MAX_SAFE_INTEGER / 400)) {
+    return { count: null, error: "Enter a nonnegative whole number of guests within the supported range." };
+  }
+  return { count, error: "" };
+}
+
+function calculatePersonalEarnings(result, profile){
+  const normalize = name => String(name || "").trim().toLowerCase();
+  const indexes = result.cash.entries.map((entry, index) =>
+    normalize(entry.name) === normalize(profile.owner) ? index : -1
+  ).filter(index => index >= 0);
+  if (!indexes.length) return null;
+  const hours = indexes.reduce((sum, index) => sum + result.cash.entries[index].hours, 0);
+  const roleHours = {};
+  const wageCents = [];
+  for (const index of indexes) {
+    const entry = result.cash.entries[index];
+    const hourlyRate = profile.roleRates ? profile.roleRates[entry.role] : profile.hourlyRate;
+    if (!Number.isFinite(hourlyRate)) {
+      return { error: `No hourly rate is set for your ${entry.role} shift.` };
+    }
+    roleHours[entry.role] = (roleHours[entry.role] || 0) + entry.hours;
+    wageCents.push(Math.round(entry.hours * hourlyRate * 100));
+  }
+  const wages = wageCents.reduce((sum, cents) => sum + cents, 0) / 100;
+  const tips = Math.round(indexes.reduce((sum, index) =>
+    sum + result.cash.entries[index].tipout + result.credit.entries[index].tipout, 0) * 100) / 100;
+  const paycheckShare = Math.round(indexes.reduce((sum, index) => sum + result.paycheck.entries[index].tipout, 0) * 100) / 100;
+  const baseGross = Math.round((wages + tips) * 100) / 100;
+  const baseTax = Math.round(baseGross * profile.withholdingRate * 100) / 100;
+  const withoutMinimum = { gross: baseGross, tax: baseTax, net: Math.round((baseGross - baseTax) * 100) / 100 };
+  const gross = Math.round((wages + tips + paycheckShare) * 100) / 100;
+  const tax = Math.round(gross * profile.withholdingRate * 100) / 100;
+  const net = Math.round((gross - tax) * 100) / 100;
+  withoutMinimum.hourlyGross = Math.round(baseGross / hours * 100) / 100;
+  withoutMinimum.hourlyNet = Math.round(withoutMinimum.net / hours * 100) / 100;
+  return { hours, wages, tips, roleHours, paycheckShare, withoutMinimum, gross, tax, net,
+    hourlyGross: Math.round(gross / hours * 100) / 100,
+    hourlyNet: Math.round(net / hours * 100) / 100 };
+}
+
+function calculateEventTips(cashPot, creditPot, people, guestCount){
+  const cash = calculateTipPool(cashPot, people);
+  const credit = calculateTipPool(creditPot, people, "cents");
+  const totalEarned = Math.round((cash.totalEarned + credit.totalEarned) * 100) / 100;
+  const guaranteedMinimum = guestCount === null ? null : guestCount * 4;
+  const paycheckDifference = guaranteedMinimum === null ? 0 : Math.max(0, Math.round((guaranteedMinimum - totalEarned) * 100) / 100);
+  const paycheck = calculateTipPool(paycheckDifference, people, "cents");
+  return { cash, credit, totalEarned, guaranteedMinimum, paycheckDifference, paycheck,
+    cashRoundingDifference: cash.totalEarned - cashPot,
+    creditUnallocated: Math.round((creditPot - credit.totalEarned) * 100) / 100 };
+}
+// END SHARED TIP CALCULATIONS
 
 function isEarningsTrackerOwner(managerName) {
   return String(managerName || "").trim().toLowerCase() === EARNINGS_TRACKER_OWNER.toLowerCase();
 }
 
 function getEarningsTrackerAccess(managerName) {
-  return isEarningsTrackerOwner(managerName) ? { earningsTracker: true } : {};
+  if (!isEarningsTrackerOwner(managerName)) return {};
+  const url = String(PropertiesService.getScriptProperties().getProperty(WILLS_EARNINGS_URL_PROPERTY) || "");
+  return { earningsTracker: true, ...(/^https:\/\/script\.google\.com\//.test(url) ? { earningsSiteUrl: url } : {}) };
 }
 
 function requireEarningsTrackerOwner(payload) {
@@ -136,222 +355,112 @@ function requireEarningsTrackerOwner(payload) {
   return managerName;
 }
 
-function roundCents(value) {
-  return Math.round(Number(value) * 100) / 100;
+function toCents(dollars) {
+  return Math.round(Number(dollars) * 100);
 }
 
-function isoDateToDayNumber(isoDate) {
-  const match = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const time = Date.UTC(year, month - 1, day);
-  const check = new Date(time);
-  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
-    return null;
-  }
-  return Math.round(time / 86400000);
-}
-
-function isPayPeriodStart(isoDate) {
-  const day = isoDateToDayNumber(isoDate);
-  if (day === null) return false;
-  const offset = day - isoDateToDayNumber(PAY_PERIOD_ANCHOR);
-  return ((offset % PAY_PERIOD_DAYS) + PAY_PERIOD_DAYS) % PAY_PERIOD_DAYS === 0;
-}
-
-function parseTrackerAmount(value, label) {
+function parseEventPot(value, label, allowCents) {
   const number = Number(value);
-  if (value === "" || value === null || value === undefined || !Number.isFinite(number) ||
-      number < 0 || number > MAX_TRACKER_AMOUNT) {
-    throw new Error(`${label} must be a nonnegative amount.`);
+  if (!Number.isFinite(number) || number < 0 || number > MAX_EVENT_POT ||
+      (allowCents ? Math.abs(number * 100 - Math.round(number * 100)) > 1e-6 : !Number.isInteger(number))) {
+    throw new Error(`${label} is not a valid amount.`);
   }
-  return roundCents(number);
+  return allowCents ? Math.round(number * 100) / 100 : number;
 }
 
-function buildTrackerShift(input, hourlyRate, withholdingRate) {
-  const shiftDate = String(input && input.shiftDate || "").trim();
-  if (isoDateToDayNumber(shiftDate) === null) {
-    throw new Error("Enter a valid shift date.");
+function parseEventStaff(staff) {
+  if (!Array.isArray(staff) || !staff.length || staff.length > MAX_EVENT_STAFF) {
+    throw new Error("Enter the event's staff time cards before saving.");
   }
-  const venue = String(input && input.venue || "").trim().slice(0, 60);
-  if (!venue) {
-    throw new Error("Select a venue before saving your shift.");
-  }
-  const hours = Number(input && input.hours);
-  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
-    throw new Error("Hours must be greater than 0 and no more than 24.");
-  }
-  const cashTips = parseTrackerAmount(input.cashTips, "Cash tips");
-  const creditTips = parseTrackerAmount(input.creditTips, "Credit tips");
-  // The $4-per-guest minimum applies only to weddings.
-  const wedding = input.wedding === true || /^(yes|true)$/i.test(String(input.wedding || ""));
-  const tipMinimum = wedding ? parseTrackerAmount(input.tipMinimum, "Tip minimum") : 0;
-  // Matches calculatePersonalEarnings in index.html so saved totals equal the on-screen totals.
-  const wages = roundCents(hours * hourlyRate);
-  const tips = roundCents(cashTips + creditTips);
-  const gross = roundCents(wages + tips + tipMinimum);
-  const tax = roundCents(gross * withholdingRate);
-  const net = roundCents(gross - tax);
-  return { shiftDate, venue, hours, wages, cashTips, creditTips, tipMinimum, gross, tax, net, wedding };
-}
-
-function getTrackerSpreadsheet() {
-  const props = PropertiesService.getScriptProperties();
-  const existingId = props.getProperty(TRACKER_SPREADSHEET_PROPERTY);
-  if (existingId) return SpreadsheetApp.openById(existingId);
-
-  // Created in the deploying account's Drive and not shared with anyone.
-  const spreadsheet = SpreadsheetApp.create(TRACKER_SPREADSHEET_NAME);
-  props.setProperty(TRACKER_SPREADSHEET_PROPERTY, spreadsheet.getId());
-  return spreadsheet;
-}
-
-function getTrackerSheet(spreadsheet, name, columns) {
-  let sheet = spreadsheet.getSheetByName(name);
-  if (!sheet) {
-    const sheets = spreadsheet.getSheets();
-    const unusedDefault = sheets.length === 1 && sheets[0].getLastRow() === 0 &&
-      sheets[0].getName() !== SHIFT_SHEET && sheets[0].getName() !== PAYCHECK_SHEET;
-    sheet = unusedDefault ? sheets[0].setName(name) : spreadsheet.insertSheet(name);
-  }
-  if (sheet.getLastRow() === 0) {
-    writeTrackerRow(sheet, 1, columns);
-    sheet.setFrozenRows(1);
-  } else {
-    const header = sheet.getRange(1, 1, 1, columns.length).getValues()[0].map(String);
-    // Adds columns introduced after the sheet was created; existing rows are untouched.
-    if (columns.some((column, index) => header[index] !== column)) writeTrackerRow(sheet, 1, columns);
-  }
-  return sheet;
-}
-
-function writeTrackerRow(sheet, row, values) {
-  // Plain-text cells keep dates and cents exactly as saved.
-  sheet.getRange(row, 1, 1, values.length)
-    .setNumberFormat("@")
-    .setValues([values.map(value => value === null || value === undefined ? "" : String(value))]);
-}
-
-function readTrackerRows(sheet, columns) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-  return sheet.getRange(2, 1, lastRow - 1, columns.length).getValues().map((values, index) => {
-    const record = { row: index + 2 };
-    columns.forEach((column, columnIndex) => { record[column] = String(values[columnIndex]); });
-    return record;
+  return staff.map(row => {
+    const role = String(row && row.role || "");
+    const hours = Number(row && row.hours);
+    if (!STAFF_ROLES.includes(role) || !Number.isFinite(hours) || hours < 0 || hours > 24) {
+      throw new Error("A staff time card has an invalid role or hours.");
+    }
+    return { role, name: String(row.name || role).trim().replace(/\s+/g, " ").slice(0, 60), hours };
   });
 }
 
-function toTrackerShift(record) {
-  const shift = { id: record.id, shiftDate: record.shiftDate, venue: record.venue,
-    savedAt: record.savedAt, updatedAt: record.updatedAt,
-    wedding: [true, "yes"].includes(record.wedding) ? true : [false, "no"].includes(record.wedding) ? false : null };
-  ["hours", "wages", "cashTips", "creditTips", "tipMinimum", "gross", "tax", "net"].forEach(key => {
-    shift[key] = Number(record[key]) || 0;
-  });
-  return shift;
+function getWillsEarningsSpreadsheet() {
+  const id = PropertiesService.getScriptProperties().getProperty(WILLS_EARNINGS_SPREADSHEET_PROPERTY);
+  if (!id) throw new Error("Will's Earnings is not connected yet.");
+  return SpreadsheetApp.openById(id);
 }
 
-function shiftToRow(shift) {
-  return SHIFT_COLUMNS.map(column => column === "wedding" ? (shift.wedding ? "yes" : "no") : shift[column]);
-}
+// Recalculates the owner's earnings from the event inputs with the private server-side profile,
+// so totals sent by a browser are never trusted.
+function saveEarningsShift(payload, managerName) {
+  const profile = getPersonalEarningsProfile(managerName);
+  if (!profile || !Number.isFinite(profile.hourlyRate)) throw new Error("Unsupported action.");
+  const idempotencyKey = String(payload.idempotencyKey || "");
+  if (!/^[A-Za-z0-9-]{16,80}$/.test(idempotencyKey)) throw new Error("Invalid save request. Try again.");
+  const event = payload.event || {};
+  const shiftDate = String(event.shiftDate || "");
+  if (earningsDayNumber(shiftDate) === null) throw new Error("Choose the date you worked.");
+  const venue = String(event.venue || "");
+  if (!VENUES.includes(venue)) throw new Error("Select a venue before saving your shift.");
+  const isWedding = event.isWedding === true;
+  let guestCount = null;
+  if (isWedding && event.guestCount !== null && event.guestCount !== undefined && event.guestCount !== "") {
+    guestCount = Number(event.guestCount);
+    if (!Number.isSafeInteger(guestCount) || guestCount < 0 || guestCount > 100000) throw new Error("The guest count is not valid.");
+  }
+  const result = calculateEventTips(
+    parseEventPot(event.cashPot, "Cash tip pot", false),
+    parseEventPot(event.creditPot, "Credit tips", true),
+    parseEventStaff(event.staff),
+    guestCount
+  );
+  const earnings = calculatePersonalEarnings(result, profile);
+  if (!earnings) throw new Error(`Add ${profile.owner} with your hours before saving.`);
+  if (earnings.error) throw new Error(earnings.error);
+  const own = result.cash.entries.map((entry, index) => ({ ...entry, index }))
+    .filter(entry => entry.name.trim().toLowerCase() === profile.owner.toLowerCase());
+  const cashTipsCents = own.reduce((sum, entry) => sum + toCents(entry.tipout), 0);
+  const creditTipsCents = own.reduce((sum, entry) => sum + toCents(result.credit.entries[entry.index].tipout), 0);
+  const grossCents = toCents(earnings.gross);
+  const taxCents = toCents(earnings.tax);
+  const netCents = grossCents - taxCents;
+  const now = new Date().toISOString();
 
-function sameShiftSlot(record, shiftDate, venue) {
-  return record.shiftDate === shiftDate && record.venue.trim().toLowerCase() === venue.trim().toLowerCase();
-}
-
-function listEarningsTracker(spreadsheet) {
-  const shifts = readTrackerRows(getTrackerSheet(spreadsheet, SHIFT_SHEET, SHIFT_COLUMNS), SHIFT_COLUMNS)
-    .filter(record => record.id)
-    .map(toTrackerShift)
-    .sort((a, b) => a.shiftDate.localeCompare(b.shiftDate) || a.savedAt.localeCompare(b.savedAt));
-  const paychecks = {};
-  readTrackerRows(getTrackerSheet(spreadsheet, PAYCHECK_SHEET, PAYCHECK_COLUMNS), PAYCHECK_COLUMNS)
-    .forEach(record => {
-      if (record.periodStart && record.actualPaycheck !== "") {
-        paychecks[record.periodStart] = Number(record.actualPaycheck);
-      }
-    });
-  return { payPeriodAnchor: PAY_PERIOD_ANCHOR, payPeriodDays: PAY_PERIOD_DAYS, shifts, paychecks };
-}
-
-function withTrackerLock(callback) {
+  const spreadsheet = getWillsEarningsSpreadsheet();
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    return callback();
+    const sheet = earningsSheet(spreadsheet, EARNINGS_SHIFT_SHEET, EARNINGS_SHIFT_COLUMNS);
+    const existing = earningsReadRows(sheet, EARNINGS_SHIFT_COLUMNS)
+      .find(record => record.idempotencyKey === idempotencyKey);
+    const summary = shift => ({
+      id: shift.id, shiftDate: shift.shiftDate, grossCents: Number(shift.grossCents),
+      netCents: Number(shift.netCents), depositCents: Number(shift.depositCents)
+    });
+    if (existing) return { duplicate: true, shift: summary(existing) };
+    const period = earningsPayPeriod(earningsSchedules(spreadsheet), shiftDate);
+    if (earningsIsVerifiedPeriod(spreadsheet, period.start)) {
+      throw new Error("That pay period is marked Verified in Will's Earnings. Change its status there before adding shifts.");
+    }
+    const shift = {
+      id: Utilities.getUuid(), idempotencyKey, shiftDate, venue,
+      eventType: isWedding ? "wedding" : "non-wedding",
+      role: [...new Set(own.map(entry => entry.role))].join(" + "),
+      hours: earnings.hours,
+      hourlyWageCents: toCents(profile.hourlyRate),
+      wageCents: toCents(earnings.wages),
+      cashTipsCents, creditTipsCents,
+      guaranteeCents: isWedding ? toCents(earnings.paycheckShare) : 0,
+      grossCents, taxCents, netCents,
+      cashReceivedCents: cashTipsCents,
+      depositCents: netCents - cashTipsCents,
+      withholdingRate: profile.withholdingRate,
+      payPeriodStart: period.start, payPeriodEnd: period.end,
+      source: "TwoBirds Tipout", createdAt: now, updatedAt: now
+    };
+    earningsWriteRow(sheet, sheet.getLastRow() + 1, earningsShiftRow(shift));
+    return { saved: true, shift: summary(shift) };
   } finally {
     lock.releaseLock();
   }
-}
-
-function handleEarningsTrackerAction(action, payload, managerName) {
-  const profile = getPersonalEarningsProfile(managerName);
-  if (!profile || !Number.isFinite(profile.hourlyRate)) {
-    throw new Error("Unsupported action.");
-  }
-
-  return withTrackerLock(() => {
-    const spreadsheet = getTrackerSpreadsheet();
-    if (action === "trackerList") {
-      return listEarningsTracker(spreadsheet);
-    }
-
-    const shiftSheet = getTrackerSheet(spreadsheet, SHIFT_SHEET, SHIFT_COLUMNS);
-    const records = readTrackerRows(shiftSheet, SHIFT_COLUMNS).filter(record => record.id);
-    const now = new Date().toISOString();
-
-    if (action === "trackerSaveShift" || action === "trackerUpdateShift") {
-      const shift = buildTrackerShift(payload.shift || {}, profile.hourlyRate, profile.withholdingRate);
-      const editing = action === "trackerUpdateShift"
-        ? records.find(record => record.id === String(payload.id || ""))
-        : null;
-      if (action === "trackerUpdateShift" && !editing) {
-        throw new Error("That shift no longer exists. Refresh and try again.");
-      }
-      const duplicate = records.find(record =>
-        sameShiftSlot(record, shift.shiftDate, shift.venue) && (!editing || record.id !== editing.id)
-      );
-      if (duplicate && (editing || !payload.replace)) {
-        return { duplicate: toTrackerShift(duplicate), ...listEarningsTracker(spreadsheet) };
-      }
-
-      const target = editing || duplicate;
-      const saved = {
-        ...shift,
-        id: target ? target.id : Utilities.getUuid(),
-        savedAt: target ? target.savedAt : now,
-        updatedAt: now
-      };
-      writeTrackerRow(shiftSheet, target ? target.row : shiftSheet.getLastRow() + 1, shiftToRow(saved));
-      return { saved: toTrackerShift(saved), replaced: Boolean(target), ...listEarningsTracker(spreadsheet) };
-    }
-
-    if (action === "trackerDeleteShift") {
-      const record = records.find(item => item.id === String(payload.id || ""));
-      if (record) shiftSheet.deleteRow(record.row);
-      return { deleted: Boolean(record), ...listEarningsTracker(spreadsheet) };
-    }
-
-    if (action === "trackerSetPaycheck") {
-      const periodStart = String(payload.periodStart || "").trim();
-      if (!isPayPeriodStart(periodStart)) {
-        throw new Error("Choose a valid pay period.");
-      }
-      const clearing = payload.actualPaycheck === null || payload.actualPaycheck === "";
-      const amount = clearing ? "" : parseTrackerAmount(payload.actualPaycheck, "Actual paycheck");
-      const paycheckSheet = getTrackerSheet(spreadsheet, PAYCHECK_SHEET, PAYCHECK_COLUMNS);
-      const existing = readTrackerRows(paycheckSheet, PAYCHECK_COLUMNS)
-        .find(record => record.periodStart === periodStart);
-      const row = existing ? existing.row : paycheckSheet.getLastRow() + 1;
-      writeTrackerRow(paycheckSheet, row, [periodStart, amount, now]);
-      return listEarningsTracker(spreadsheet);
-    }
-
-    throw new Error("Unsupported action.");
-  });
 }
 
 function doPost(e) {
@@ -389,9 +498,9 @@ function doPost(e) {
       });
     }
 
-    if (/^tracker[A-Z]/.test(action)) {
+    if (action === "saveEarningsShift") {
       const managerName = requireEarningsTrackerOwner(payload);
-      return createJsonResponse({ ok: true, ...handleEarningsTrackerAction(action, payload, managerName) });
+      return createJsonResponse({ ok: true, ...saveEarningsShift(payload, managerName) });
     }
 
     throw new Error("Unsupported action.");
