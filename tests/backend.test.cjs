@@ -115,7 +115,7 @@ test("saved shifts are recalculated on the server and stored in whole cents", ()
       shift.cashTipsCents, shift.creditTipsCents, shift.guaranteeCents, shift.grossCents, shift.taxCents,
       shift.netCents, shift.cashReceivedCents, shift.depositCents, shift.payPeriodStart, shift.payPeriodEnd, shift.source],
     ["2026-11-05", "Ivy House", "non-wedding", "Shift Manager", "5", "1500", "7500",
-      "10000", "5000", "0", "22500", "4668", "17832", "10000", "7832", "2026-10-23", "2026-11-05", "TwoBirds Tipout"]
+      "10000", "5000", "0", "22500", "4668", "17832", "10000", "7832", "2026-11-02", "2026-11-15", "TwoBirds Tipout"]
   );
   for (const field of ["wageCents", "cashTipsCents", "creditTipsCents", "grossCents", "taxCents", "netCents", "depositCents"]) {
     assert.match(shift[field], /^-?\d+$/, `${field} is stored as integer cents`);
@@ -186,13 +186,13 @@ test("shifts follow the configured pay schedule and cannot be added to a verifie
   saveShift(backend, will, { shiftDate: "2026-11-10" });
   saveShift(backend, will, { shiftDate: "2026-11-08" });
   assert.deepEqual(storedShifts(backend).map(shift => [shift.shiftDate, shift.payPeriodStart, shift.payPeriodEnd]), [
-    ["2026-11-05", "2026-10-23", "2026-11-05"],
+    ["2026-11-05", "2026-11-02", "2026-11-15"],
     ["2026-11-10", "2026-11-09", "2026-11-15"],
-    ["2026-11-08", "2026-11-06", "2026-11-08"]
+    ["2026-11-08", "2026-11-02", "2026-11-08"]
   ]);
   const paychecks = data.getSheetByName("Paychecks");
-  paychecks.rows.push(["2026-10-23", "2026-11-05", "verified", "", "", "", "", "", ""]);
-  const locked = saveShift(backend, will, { shiftDate: "2026-11-01" });
+  paychecks.rows.push(["2026-11-02", "2026-11-15", "verified", "", "", "", "", "", ""]);
+  const locked = saveShift(backend, will, { shiftDate: "2026-11-04" });
   assert.equal(locked.ok, false);
   assert.match(locked.error, /Verified/);
   assert.equal(storedShifts(backend).length, 3);
