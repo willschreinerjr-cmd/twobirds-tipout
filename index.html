@@ -584,6 +584,7 @@
     .save-shift-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; }
     .save-shift-row input{ flex:1 1 150px; width:auto; min-width:0; padding:10px 12px; font-size:16px; }
     .save-shift-row button{ flex:0 1 auto; padding:10px 16px; font-size:15px; }
+    .venue-gate-earnings{ text-align:center; }
     .earnings-site-link{ display:inline-block; margin-top:6px; font-size:14px; font-weight:700; color:var(--green-dark); }
     .results-card thead th:nth-child(2),
     .results-card tbody td:nth-child(2){ text-align:center; }
@@ -827,6 +828,7 @@
         <div class="venue-gate-loading-bar"></div>
       </div>
       <div id="venueGateButtons" class="pin-venue-buttons"></div>
+      <div id="venueGateEarnings" class="venue-gate-earnings"></div>
     </div>
   </div>
 
@@ -1594,6 +1596,15 @@ function showVenueGateCard(subtitle = "Select your venue to continue.", animate 
   const subtitleEl = $("venueGateSubtitle");
   setGateCardVisible("venue", animate);
   if (subtitleEl) subtitleEl.textContent = subtitle;
+  renderVenueGateEarningsLink();
+}
+
+function renderVenueGateEarningsLink(){
+  const wrap = $("venueGateEarnings");
+  if (!wrap) return;
+  wrap.innerHTML = canAccessEarningsTracker() && earningsSiteUrl
+    ? `<a id="venueGateEarningsLink" class="earnings-site-link" href="${escapeHtml(earningsSiteUrl)}" target="_blank" rel="noopener">Open Will's Earnings ↗</a>`
+    : "";
 }
 
 function setVenueGateLoading(isLoading){
