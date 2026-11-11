@@ -1620,14 +1620,18 @@ function renderVenueGateEarningsLink(){
   if (!wrap) return;
   if (!authenticatedManagerName || !authenticatedManagerToken) { wrap.innerHTML = ""; return; }
   const url = personalTrackerUrl();
-  wrap.innerHTML = `${url ? `<a id="venueGateEarningsLink" class="private-earnings-button" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open My Private Earnings ↗</a>` : '<button id="setupPrivateEarnings" class="private-earnings-button" type="button">Set Up My Private Earnings</button>'}
-    <details id="privateTrackerSetup"><summary>${url ? "Change private earnings link" : "Private tracker setup"}</summary>
-    <p>Each manager creates their own private Google tracker. Your link is saved only in this browser.</p>
-    <p><a href="https://github.com/willschreinerjr-cmd/wills-earnings#setting-up-your-own-private-tracker" target="_blank" rel="noopener">View setup instructions ↗</a></p>
+  if (url) {
+    wrap.innerHTML = `<a id="venueGateEarningsLink" class="private-earnings-button" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open My Private Earnings ↗</a>`;
+    return;
+  }
+  wrap.innerHTML = `<button id="setupPrivateEarnings" class="private-earnings-button" type="button">Set Up My Private Earnings</button>
+    <details id="privateTrackerSetup"><summary>How to set up your earnings</summary>
+    <p>Your earnings tracker is separate and private to your Google account. Follow the setup instructions to create your tracker, then paste its web app link below. You only need to save the link once per browser.</p>
+    <p><a href="https://github.com/willschreinerjr-cmd/wills-earnings#setting-up-your-own-private-tracker" target="_blank" rel="noopener">Open step-by-step setup instructions ↗</a></p>
     <form id="privateTrackerLinkForm"><label for="privateTrackerLink">Your Google Apps Script web app link</label>
     <input id="privateTrackerLink" type="url" required value="${escapeHtml(url)}" placeholder="https://script.google.com/macros/s/.../exec">
     <button type="submit">Save My Link</button><p id="privateTrackerLinkStatus" role="status"></p></form></details>`;
-  if ($("setupPrivateEarnings")) $("setupPrivateEarnings").addEventListener("click", () => { $("privateTrackerSetup").open = true; });
+  $("setupPrivateEarnings").addEventListener("click", () => { $("privateTrackerSetup").open = true; });
   $("privateTrackerLinkForm").addEventListener("submit", event => {
     event.preventDefault();
     const value = $("privateTrackerLink").value.trim();
@@ -1647,7 +1651,7 @@ function renderVenueGateEarningsLink(){
 function personalTrackerUrl(){
   try {
     const url = localStorage.getItem("twobirds-private-tracker:" + authenticatedManagerName.toLowerCase()) || "";
-    if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return url;
+    if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return `${url}?v=2`;
   } catch (error) {
     console.warn("Could not read the private tracker link.", error);
   }
@@ -2435,7 +2439,7 @@ function readEarningsTrackerAccess(data, managerName, profile){
 
 function readEarningsSiteUrl(data){
   const url = String(data?.earningsSiteUrl || "");
-  return /^https:\/\/script\.google\.com\/[\w\-./]+$/.test(url) ? url : "";
+  return /^https:\/\/script\.google\.com\/[\w\-./]+$/.test(url) ? `${url}?v=2` : "";
 }
 
 function setEarningsTrackerAccess(enabled, siteUrl = ""){

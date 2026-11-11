@@ -96,7 +96,8 @@ test("a manager can link their private tracker and prepare only their own shift"
     localStorage.setItem("twobirds-private-tracker:jake faapito", "https://script.google.com/macros/s/example/exec");
     renderVenueGateEarningsLink();
   });
-  assert.equal(await page.locator("#venueGateEarningsLink").getAttribute("href"), "https://script.google.com/macros/s/example/exec");
+  assert.equal(await page.locator("#venueGateEarningsLink").getAttribute("href"), "https://script.google.com/macros/s/example/exec?v=2");
+  assert.equal(await page.locator("#privateTrackerSetup").count(), 0, "configured managers see only their earnings button");
   await fill(page, "pot", "100");
   await fill(page, "creditPot", "50");
   await page.locator("#privateTransferDate").fill("2026-11-06");
@@ -764,7 +765,7 @@ test("Save My Shift sends Will's event inputs once, retries safely, and never st
   const { backend, requests, setAvailable } = await useFakeBackend(page);
   await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
   await page.locator("#saveMyShift").waitFor();
-  assert.equal(await page.locator("#openEarningsSite").getAttribute("href"), "https://script.google.com/macros/s/test-earnings-site/exec");
+  assert.equal(await page.locator("#openEarningsSite").getAttribute("href"), "https://script.google.com/macros/s/test-earnings-site/exec?v=2");
   assert.equal(await page.locator("#earningsTracker, #trackerShifts, #trackerSummary").count(), 0, "no dashboard in the calculator");
   assert.equal(await page.locator("#saveShiftDate").inputValue(), await page.evaluate(() => businessDateISO()));
   assert.equal(await page.evaluate(() => businessDateISO(new Date(2026, 10, 6, 2, 30))), "2026-11-05");

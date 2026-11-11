@@ -135,8 +135,7 @@ it does not store or display earnings history.
   can be saved. If Will's Earnings is unavailable, the calculator keeps working,
   shows the error, and keeps all inputs for a retry.
 - The shift date defaults to today; a shift saved before 3 AM counts toward the
-  previous day. Pay periods, editing, deleting, and paycheck verification are
-  handled in Will's Earnings.
+  previous day. Pay periods, editing, and deleting are handled in Will's Earnings.
 
 The backend reads Script Properties `WILLS_EARNINGS_SPREADSHEET_ID` (Will's
 Earnings data sheet) and `WILLS_EARNINGS_URL` (the site link). Expired manager
