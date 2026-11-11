@@ -37,17 +37,24 @@ after(async () => {
   if (server) await new Promise(resolve => server.close(resolve));
 });
 
-async function openCalculator(t, width = 1100, sharedGoogle = false) {
+async function openCalculator(t, width = 1100, sharedGoogle = false, keepGate = false) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: "block" });
   if (sharedGoogle) await context.addInitScript(() => {
     let rates = null;
     const calls = [];
     window.sharedCalls = calls;
-    const session = () => ({ managerName: "Test Manager", expiresAt: Date.now() + 600000,
+    const session = () => ({ managerName: "Test Manager",
       hourlyRates: rates, earningsUrl: "https://script.google.com/macros/s/test/exec?view=earnings" });
     const handlers = {
-      signInSharedManager: pin => { if (pin !== "1234") throw new Error("Invalid PIN"); return session(); },
-      getSharedManagerSession: session,
+      signInSharedManager: pin => {
+        if (pin !== "1234") throw new Error("Invalid PIN");
+        localStorage.setItem("test-activated", "yes");
+        return session();
+      },
+      getSharedManagerSession: () => {
+        if (localStorage.getItem("test-activated") !== "yes") throw new Error("Enter your manager PIN to activate this Google account.");
+        return session();
+      },
       saveHourlyRates: input => { rates = { bartenderCents: Math.round(Number(input.bartender) * 100),
         managerCents: Math.round(Number(input.manager) * 100) }; return rates; },
       saveTransferredShift: input => { calls.push(input); return {}; }
@@ -79,13 +86,27 @@ async function openCalculator(t, width = 1100, sharedGoogle = false) {
   await page.goto(baseURL);
   assert.equal(await page.locator("#pinGate").isVisible(), true);
   // Isolate calculator behavior from the live manager/Toast services.
-  await page.evaluate(() => {
-    document.getElementById("pinGate").style.display = "none";
-    document.body.classList.remove("pin-gate-active");
-    document.body.style.overflow = "";
-  });
+  if (!keepGate) {
+    await page.evaluate(() => {
+      document.getElementById("pinGate").style.display = "none";
+      document.body.classList.remove("pin-gate-active");
+      document.body.style.overflow = "";
+    });
+  }
   return page;
 }
+
+test("first PIN activation is remembered on subsequent visits without browser session storage", async t => {
+  const page = await openCalculator(t, 390, true, true);
+  await page.locator('#managerKeypad button[data-digit="1"]').waitFor({ state: "visible" });
+  await page.waitForFunction(() => !document.querySelector('#managerKeypad button[data-digit="1"]').disabled);
+  for (const digit of "1234") await page.locator(`#managerKeypad button[data-digit="${digit}"]`).click();
+  await page.getByText("Hey Test Manager!").waitFor();
+  await page.evaluate(() => sessionStorage.clear());
+  await page.reload();
+  await page.getByText("Hey Test Manager!").waitFor();
+  assert.equal(await page.locator("#managerPinCard").isVisible(), false);
+});
 
 test("the public calculator directs managers to Google-account sign-in", async t => {
   const context = await browser.newContext({ serviceWorkers: "block" });

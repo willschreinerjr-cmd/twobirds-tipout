@@ -1911,11 +1911,13 @@ function initManagerGate(){
       authenticatedManagerToken = auth.authToken;
       personalEarningsProfile = auth.personalEarningsProfile;
       setEarningsTrackerAccess(auth.earningsTracker, auth.earningsSiteUrl);
-      try {
-        sessionStorage.setItem(MANAGER_PIN_KEY, auth.managerName);
-        sessionStorage.setItem(MANAGER_TOKEN_KEY, auth.authToken);
-        sessionStorage.setItem(MANAGER_TOKEN_EXP_KEY, String(auth.expiresAt));
-      } catch {}
+      if (!SHARED_GOOGLE_APP) {
+        try {
+          sessionStorage.setItem(MANAGER_PIN_KEY, auth.managerName);
+          sessionStorage.setItem(MANAGER_TOKEN_KEY, auth.authToken);
+          sessionStorage.setItem(MANAGER_TOKEN_EXP_KEY, String(auth.expiresAt));
+        } catch {}
+      }
       setPin("");
       clearError();
       startPostPinVenueFlow(auth.managerName);
@@ -1977,6 +1979,27 @@ function initManagerGate(){
   };
 
   const tryRestoreSession = async () => {
+    if (SHARED_GOOGLE_APP) {
+      setPinInputsDisabled(true);
+      showError("Checking your Google account...", 0);
+      try {
+        const auth = parseSharedSession(await sharedApi("getSharedManagerSession"));
+        authenticatedManagerName = auth.managerName;
+        authenticatedManagerToken = auth.authToken;
+        personalEarningsProfile = auth.personalEarningsProfile;
+        setEarningsTrackerAccess(auth.earningsTracker, auth.earningsSiteUrl);
+        clearError();
+        startPostPinVenueFlow(auth.managerName);
+      } catch (error) {
+        startFreshLogin();
+        if (!/Enter your manager PIN to activate this Google account/i.test(String(error && error.message || error))) {
+          showError(`Could not check your Google account: ${error && error.message || error}`, 0);
+        }
+      } finally {
+        setPinInputsDisabled(false);
+      }
+      return;
+    }
     if (!existingManager || !existingToken || !Number.isFinite(existingTokenExp) || existingTokenExp <= Date.now()) {
       startFreshLogin();
       return;
@@ -3173,12 +3196,11 @@ function sharedProfile(session){
 
 function parseSharedSession(session){
   if (!session || typeof session.managerName !== "string" || !session.managerName.trim() ||
-      !Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now() ||
       !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?view=earnings$/.test(session.earningsUrl)) {
     throw new Error("Google account session response was incomplete.");
   }
   return { managerName: session.managerName.trim(), authToken: "google-account",
-    expiresAt: session.expiresAt, personalEarningsProfile: sharedProfile(session),
+    personalEarningsProfile: sharedProfile(session),
     earningsTracker: true, earningsSiteUrl: session.earningsUrl };
 }
 

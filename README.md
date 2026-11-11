@@ -44,11 +44,11 @@ are for development only.
 ## Login and venue loading
 
 Managers sign in with their approved Google account and then enter the PIN
-assigned to that account. A PIN alone cannot unlock the deployed calculator or
+assigned to that account the first time. After activation, subsequent visits
+use the approved Google account automatically. A PIN alone cannot unlock the deployed calculator or
 save earnings. Managers without an approved account must be added by the app
 owner before they can use it. Google may request sign-in or authorization
-again; a permanent login cannot be guaranteed. PIN sessions expire after 12
-hours. The legacy PIN-only backend is disabled by default, including previously
+again; a permanent Google login cannot be guaranteed. The legacy PIN-only backend is disabled by default, including previously
 issued sessions.
 
 Selecting or changing a venue does not make any staff-loading requests. Staff
