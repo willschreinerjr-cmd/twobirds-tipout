@@ -142,6 +142,23 @@ The backend reads Script Properties `WILLS_EARNINGS_SPREADSHEET_ID` (Will's
 Earnings data sheet) and `WILLS_EARNINGS_URL` (the site link). Expired manager
 sessions are pruned from Script Properties at each sign-in.
 
+## Individually owned earnings trackers
+
+Every PIN-authenticated manager can configure an optional **My Private Earnings**
+link on the venue screen. Each manager creates and owns their own Google Apps
+Script project and spreadsheet using the
+[setup instructions](https://github.com/willschreinerjr-cmd/wills-earnings#setting-up-your-own-private-tracker).
+The link is saved per manager in the current browser; it is not authentication.
+Each tracker is accessible only through its owner's Google account.
+
+After a shift, **Transfer My Shift Privately** copies that manager's date,
+venue, role, hours and allocated tips for review and confirmation in their own
+tracker. It does not send their rates or earnings history to the shared backend.
+The tracker stores their bartender and manager rates independently and uses
+the current rate for new imports, without changing historical shifts. The
+clipboard and browser can be accessible to others on a shared device.
+Will's existing direct-save button remains available separately.
+
 ## Backend deployment
 
 [google-apps-script.gs](google-apps-script.gs) handles manager PIN login,

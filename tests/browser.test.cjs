@@ -86,6 +86,30 @@ async function text(page, id, expected) {
   assert.equal(await page.locator(`#${id}`).textContent(), expected, id);
 }
 
+test("a manager can link their private tracker and prepare only their own shift", async t => {
+  const page = await openCalculator(t);
+  await useFakeBackend(page);
+  await signInAs(page, "2334", [["Shift Manager", "Jake Faapito", "3"], ["Bartender", "Someone Else", "3"]]);
+  await page.evaluate(() => renderVenueGateEarningsLink());
+  assert.equal(await page.locator("#setupPrivateEarnings").count(), 1);
+  await page.evaluate(() => {
+    localStorage.setItem("twobirds-private-tracker:jake faapito", "https://script.google.com/macros/s/example/exec");
+    renderVenueGateEarningsLink();
+  });
+  assert.equal(await page.locator("#venueGateEarningsLink").getAttribute("href"), "https://script.google.com/macros/s/example/exec");
+  await fill(page, "pot", "100");
+  await fill(page, "creditPot", "50");
+  await page.locator("#privateTransferDate").fill("2026-11-06");
+  await page.locator("#preparePrivateTransfer").click();
+  const transfer = JSON.parse(await page.locator("#privateTransferText").inputValue());
+  assert.deepEqual(transfer.entries, [{ role: "Shift Manager", hours: 3, cashTipsCents: 5100, creditTipsCents: 2500, guaranteeCents: 0 }]);
+  assert.doesNotMatch(JSON.stringify(transfer), /Jake|Someone/);
+  await fill(page, "pot", "200");
+  assert.equal(await page.locator("#privateTransferOutput").isVisible(), false);
+  await page.evaluate(() => clearManagerSessionStorage());
+  assert.equal(await page.locator("#privateTransfer").isVisible(), false);
+});
+
 test("Jon Slock is available as a bartender name suggestion", async t => {
   const page = await openCalculator(t);
   const nameInput = page.locator("#staffBody input").first();

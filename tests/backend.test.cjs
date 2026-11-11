@@ -177,7 +177,7 @@ test("invalid shifts are rejected without storing anything", () => {
   assert.deepEqual(storedShifts(backend), []);
 });
 
-test("shifts follow the configured pay schedule and cannot be added to a verified pay period", () => {
+test("shifts follow the configured pay schedule even when a paycheck is marked verified", () => {
   const backend = loadBackend();
   const will = signIn(backend, WILL_PIN);
   saveShift(backend, will);
@@ -190,12 +190,12 @@ test("shifts follow the configured pay schedule and cannot be added to a verifie
     ["2026-11-10", "2026-11-09", "2026-11-15"],
     ["2026-11-08", "2026-11-02", "2026-11-08"]
   ]);
-  const paychecks = data.getSheetByName("Paychecks");
+  const paychecks = data.insertSheet("Paychecks");
   paychecks.rows.push(["2026-11-02", "2026-11-15", "verified", "", "", "", "", "", ""]);
-  const locked = saveShift(backend, will, { shiftDate: "2026-11-04" });
-  assert.equal(locked.ok, false);
-  assert.match(locked.error, /Verified/);
-  assert.equal(storedShifts(backend).length, 3);
+  const afterVerification = saveShift(backend, will, { shiftDate: "2026-11-04" });
+  assert.equal(afterVerification.ok, true, afterVerification.error);
+  assert.equal(afterVerification.saved, true);
+  assert.equal(storedShifts(backend).length, 4);
 });
 
 test("the calculator keeps working when Will's Earnings is not connected or unavailable", () => {

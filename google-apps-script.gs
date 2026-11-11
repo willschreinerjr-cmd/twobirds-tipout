@@ -133,7 +133,6 @@ const MAX_EVENT_STAFF = 60;
 // BEGIN SHARED EARNINGS STORAGE (keep identical in twobirds-tipout/google-apps-script.gs and wills-earnings/src/Code.gs)
 const EARNINGS_SHIFT_SHEET = "Shifts";
 const EARNINGS_SCHEDULE_SHEET = "PaySchedule";
-const EARNINGS_PAYCHECK_SHEET = "Paychecks";
 const EARNINGS_OWNER_SHEET = "Owner";
 const EARNINGS_SHIFT_COLUMNS = [
   "id", "idempotencyKey", "shiftDate", "venue", "eventType", "role", "hours",
@@ -142,10 +141,6 @@ const EARNINGS_SHIFT_COLUMNS = [
   "withholdingRate", "payPeriodStart", "payPeriodEnd", "source", "createdAt", "updatedAt"
 ];
 const EARNINGS_SCHEDULE_COLUMNS = ["startDate", "periodDays", "createdAt"];
-const EARNINGS_PAYCHECK_COLUMNS = [
-  "periodStart", "periodEnd", "status", "actualGrossCents", "actualTaxesCents",
-  "actualDepositCents", "adjustmentsCents", "notes", "updatedAt"
-];
 const EARNINGS_OWNER_COLUMNS = ["ownerId", "createdAt"];
 const EARNINGS_DEFAULT_SCHEDULE = { startDate: "2026-11-02", periodDays: 14 };
 const EARNINGS_INTEGER_FIELDS = [
@@ -220,16 +215,6 @@ function earningsPayPeriod(schedules, isoDate) {
   const next = schedules[index + 1];
   if (next) end = Math.min(end, earningsDayNumber(next.startDate) - 1);
   return { start: earningsDayToIso(start), end: earningsDayToIso(end) };
-}
-
-function earningsPaychecks(spreadsheet) {
-  const sheet = earningsSheet(spreadsheet, EARNINGS_PAYCHECK_SHEET, EARNINGS_PAYCHECK_COLUMNS);
-  return earningsReadRows(sheet, EARNINGS_PAYCHECK_COLUMNS).filter(record => record.periodStart);
-}
-
-function earningsIsVerifiedPeriod(spreadsheet, periodStart) {
-  return earningsPaychecks(spreadsheet).some(record =>
-    record.periodStart === periodStart && record.status === "verified");
 }
 
 function earningsShiftFromRecord(record) {
@@ -437,9 +422,6 @@ function saveEarningsShift(payload, managerName) {
     });
     if (existing) return { duplicate: true, shift: summary(existing) };
     const period = earningsPayPeriod(earningsSchedules(spreadsheet), shiftDate);
-    if (earningsIsVerifiedPeriod(spreadsheet, period.start)) {
-      throw new Error("That pay period is marked Verified in Will's Earnings. Change its status there before adding shifts.");
-    }
     const shift = {
       id: Utilities.getUuid(), idempotencyKey, shiftDate, venue,
       eventType: isWedding ? "wedding" : "non-wedding",
