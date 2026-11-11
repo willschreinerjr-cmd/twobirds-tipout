@@ -447,6 +447,9 @@ function saveEarningsShift(payload, managerName) {
 
 function doPost(e) {
   try {
+    if (PropertiesService.getScriptProperties().getProperty("LEGACY_PIN_AUTH_ENABLED") !== "true") {
+      throw new Error("PIN-only access is retired. Open the Google-account calculator.");
+    }
     const payload = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     const action = String(payload.action || "").trim();
 

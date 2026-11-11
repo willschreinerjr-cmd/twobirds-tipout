@@ -40,6 +40,20 @@ function storedShifts(backend) {
   return rows.map(row => Object.fromEntries(header.map((column, index) => [column, row[index]])));
 }
 
+test("the retired backend rejects PIN login, existing sessions, and shift saves by default", () => {
+  const backend = loadBackend({ enableLegacy: false });
+  for (const payload of [
+    { action: "authManagerPin", pin: WILL_PIN },
+    { action: "validateManagerSession", managerName: "Will Schreiner", authToken: "old-token" },
+    { action: "saveEarningsShift", managerName: "Will Schreiner", authToken: "old-token" }
+  ]) {
+    const result = backend.post(payload);
+    assert.equal(result.ok, false);
+    assert.match(result.error, /PIN-only access is retired/);
+  }
+  assert.deepEqual(storedShifts(backend), []);
+});
+
 test("backend offers each personal profile only to its matching authenticated account", () => {
   const backend = loadBackend();
   assert.equal(backend.context.getPersonalEarningsProfile("Someone Else"), null);

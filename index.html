@@ -951,6 +951,15 @@
       </section>
       <section id="personalEarnings" class="guarantee-section" aria-labelledby="personalEarningsTitle" aria-live="polite" hidden>
         <h2 id="personalEarningsTitle">Personal Daily Earnings</h2>
+        <form id="personalRatesForm" hidden>
+          <p class="field-help">Enter your hourly rates once. They are stored privately in your Google account. To change them later, open My Private Earnings and update My hourly pay rates.</p>
+          <label class="field-label" for="bartenderRate">Bartender hourly rate ($)</label>
+          <input id="bartenderRate" name="bartender" type="number" min="0" max="100000" step="0.01" required>
+          <label class="field-label" for="managerRate">Shift manager hourly rate ($)</label>
+          <input id="managerRate" name="manager" type="number" min="0" max="100000" step="0.01" required>
+          <button type="submit">Save My Hourly Rates</button>
+          <p id="personalRatesStatus" class="field-help" role="status"></p>
+        </form>
         <p id="personalEarningsHelp" class="field-help"></p>
         <div id="personalEarningsValues" hidden>
           <div class="guarantee-line"><span>Hourly Wages:</span><span id="personalWages"></span></div>
@@ -1248,6 +1257,10 @@ let detectedVenue = "";
 let authenticatedManagerName = "";
 let authenticatedManagerToken = "";
 let personalEarningsProfile = null;
+const SHARED_GOOGLE_APP = Boolean(window.google?.script?.run);
+if (!SHARED_GOOGLE_APP && window.location.hostname === "willschreinerjr-cmd.github.io") {
+  window.location.replace("https://script.google.com/macros/s/AKfycbwvih59gh0ZDt4vzf_RCdDftby5plsDMb1dtApwdy39Y16as7v3DS2Ckr1XYao07Jjt/exec");
+}
 let earningsTrackerEnabled = false;
 let earningsTrackerBusy = false;
 let toastTimer = null;
@@ -1452,6 +1465,7 @@ function animateVenueSwitch(select, venueName){
 function getVenuePhotoCandidates(venueName){
   const mapped = String(VENUE_PHOTO_BOOK[venueName] || "").trim();
   if (!mapped) return [];
+  if (SHARED_GOOGLE_APP) return ["https://willschreinerjr-cmd.github.io/twobirds-tipout/" + encodeURIComponent(mapped)];
 
   const normalized = mapped.replace(/^\.\//, "");
   const fileName = normalized.replace(/^\/+/, "");
@@ -1614,6 +1628,12 @@ function renderVenueGateEarningsLink(){
   const wrap = $("venueGateEarnings");
   if (!wrap) return;
   if (!authenticatedManagerName || !authenticatedManagerToken) { wrap.innerHTML = ""; return; }
+  if (SHARED_GOOGLE_APP) {
+    wrap.innerHTML = earningsSiteUrl
+      ? `<a id="venueGateEarningsLink" class="private-earnings-button" href="${escapeHtml(earningsSiteUrl)}" target="_blank" rel="noopener">Open My Private Earnings ↗</a>`
+      : "";
+    return;
+  }
   const url = personalTrackerUrl();
   if (url) {
     wrap.innerHTML = `<a id="venueGateEarningsLink" class="private-earnings-button" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open My Private Earnings ↗</a>`;
@@ -1622,9 +1642,9 @@ function renderVenueGateEarningsLink(){
   wrap.innerHTML = `<button id="setupPrivateEarnings" class="private-earnings-button" type="button">Set Up My Private Earnings</button>
     <details id="privateTrackerSetup"><summary>How to set up your earnings</summary>
     <p>Your earnings tracker is separate and private to your Google account. Follow the setup instructions to create your tracker, then paste its web app link below. You only need to save the link once per browser.</p>
-    <p><a href="https://github.com/willschreinerjr-cmd/wills-earnings#setting-up-your-own-private-tracker" target="_blank" rel="noopener">Open step-by-step setup instructions ↗</a></p>
+    <p><a href="https:\x2f\x2fgithub.com/willschreinerjr-cmd/wills-earnings#setting-up-your-own-private-tracker" target="_blank" rel="noopener">Open step-by-step setup instructions ↗</a></p>
     <form id="privateTrackerLinkForm"><label for="privateTrackerLink">Your Google Apps Script web app link</label>
-    <input id="privateTrackerLink" type="url" required value="${escapeHtml(url)}" placeholder="https://script.google.com/macros/s/.../exec">
+    <input id="privateTrackerLink" type="url" required value="${escapeHtml(url)}" placeholder="https:\x2f\x2fscript.google.com/macros/s/.../exec">
     <button type="submit">Save My Link</button><p id="privateTrackerLinkStatus" role="status"></p></form></details>`;
   $("setupPrivateEarnings").addEventListener("click", () => { $("privateTrackerSetup").open = true; });
   $("privateTrackerLinkForm").addEventListener("submit", event => {
@@ -2347,9 +2367,11 @@ async function downloadPersonalEarnings(preferShare = true){
 
 function updatePersonalEarnings(result){
   const section = $("personalEarnings");
-  $("privateTransfer").hidden = !authenticatedManagerName || !authenticatedManagerToken || canAccessEarningsTracker();
+  $("privateTransfer").hidden = SHARED_GOOGLE_APP || !authenticatedManagerName || !authenticatedManagerToken || canAccessEarningsTracker();
   const authorized = canAccessPersonalEarnings();
-  section.hidden = !authorized;
+  const sharedSignedIn = SHARED_GOOGLE_APP && authenticatedManagerName && authenticatedManagerToken;
+  section.hidden = !authorized && !sharedSignedIn;
+  $("personalRatesForm").hidden = !sharedSignedIn || authorized;
   $("personalMinimumStatus").hidden = true;
   $("personalMinimumStatus").textContent = "";
   $("personalMinimumStatus").className = "minimum-status";
@@ -2367,7 +2389,10 @@ function updatePersonalEarnings(result){
   const wedding = isWeddingEvent();
   $("withMinimumSection").hidden = !wedding;
   $("withoutMinimumTitle").textContent = wedding ? "Without Tip Minimum" : "Your Earnings";
-  if (!authorized) return;
+  if (!authorized) {
+    if (sharedSignedIn) $("personalEarningsTitle").textContent = `${authenticatedManagerName}'s Daily Earnings`;
+    return;
+  }
   $("personalEarningsTitle").textContent = `${personalEarningsProfile.owner}'s Daily Earnings`;
   const earnings = calculatePersonalEarnings(result, personalEarningsProfile);
   if (!earnings) {
@@ -2443,7 +2468,7 @@ function setEarningsTrackerAccess(enabled, siteUrl = ""){
 
 function canAccessEarningsTracker(){
   return earningsTrackerEnabled && canAccessPersonalEarnings() &&
-    personalEarningsProfile.owner === EARNINGS_TRACKER_OWNER;
+    (SHARED_GOOGLE_APP || personalEarningsProfile.owner === EARNINGS_TRACKER_OWNER);
 }
 
 function clearEarningsTracker(){
@@ -2548,7 +2573,7 @@ function ensureSaveShiftControls(){
       <button id="saveMyShift" type="button" class="primary">Save My Shift</button>
     </div>
     <p id="saveShiftStatus" class="field-help" role="status"></p>
-    ${earningsSiteUrl ? `<a id="openEarningsSite" class="earnings-site-link" href="${escapeHtml(earningsSiteUrl)}" target="_blank" rel="noopener">Open Will's Earnings ↗</a>` : ""}`;
+    ${earningsSiteUrl ? `<a id="openEarningsSite" class="earnings-site-link" href="${escapeHtml(earningsSiteUrl)}" target="_blank" rel="noopener">Open ${SHARED_GOOGLE_APP ? "My Private Earnings" : "Will's Earnings"} ↗</a>` : ""}`;
   $("personalDownloadStatus").after(wrap);
   $("saveShiftDate").value = businessDateISO();
   $("saveMyShift").addEventListener("click", saveMyShift);
@@ -2606,6 +2631,34 @@ async function saveMyShift(){
     return;
   }
   const event = buildShiftEvent(shiftDate, venue);
+  if (SHARED_GOOGLE_APP) {
+    const own = result.cash.entries.map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => entry.name.trim().toLowerCase() === authenticatedManagerName.trim().toLowerCase())
+      .map(({ entry, index }) => ({
+        role: entry.role, hours: entry.hours,
+        cashTipsCents: Math.round(entry.tipout * 100),
+        creditTipsCents: Math.round(result.credit.entries[index].tipout * 100),
+        guaranteeCents: isWeddingEvent() ? Math.round(result.paycheck.entries[index].tipout * 100) : 0
+      }));
+    earningsTrackerBusy = true;
+    $("saveMyShift").disabled = true;
+    setSaveShiftStatus("Saving your shift...");
+    try {
+      await sharedApi("saveTransferredShift", { version: 1, shiftDate, venue,
+        eventType: isWeddingEvent() ? "wedding" : "non-wedding", entries: own,
+        expectedHourlyRates: {
+          bartenderCents: Math.round(personalEarningsProfile.roleRates.Bartender * 100),
+          managerCents: Math.round(personalEarningsProfile.roleRates["Shift Manager"] * 100)
+        } });
+      setSaveShiftStatus(`Saved your ${formatShortDate(shiftDate)} shift to My Private Earnings.`, "success");
+    } catch (error) {
+      setSaveShiftStatus(`Couldn't save your shift: ${error.message || error}. Your calculator inputs are unchanged.`, "field-error");
+    } finally {
+      earningsTrackerBusy = false;
+      if ($("saveMyShift")) $("saveMyShift").disabled = false;
+    }
+    return;
+  }
   const fingerprint = JSON.stringify(event);
   const generation = earningsTrackerGeneration;
   earningsTrackerBusy = true;
@@ -3099,11 +3152,42 @@ async function performAppsScriptRequest(endpoint, payload, signal){
   throw new Error("Backend request failed. Please try again.");
 }
 
+function sharedApi(name, ...args){
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name](...args);
+  });
+}
+
+function sharedProfile(session){
+  const rates = session.hourlyRates;
+  if (!rates) return null;
+  if (!Number.isSafeInteger(rates.bartenderCents) || rates.bartenderCents < 0 ||
+      !Number.isSafeInteger(rates.managerCents) || rates.managerCents < 0 ||
+      rates.bartenderCents > 10000000 || rates.managerCents > 10000000) {
+    throw new Error("Your saved hourly rates are invalid. Update them in My Private Earnings.");
+  }
+  return { owner: session.managerName,
+    roleRates: { Bartender: rates.bartenderCents / 100, "Shift Manager": rates.managerCents / 100 },
+    withholdingRate: 0.2074821353509878 };
+}
+
+function parseSharedSession(session){
+  if (!session || typeof session.managerName !== "string" || !session.managerName.trim() ||
+      !Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now() ||
+      !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?view=earnings$/.test(session.earningsUrl)) {
+    throw new Error("Google account session response was incomplete.");
+  }
+  return { managerName: session.managerName.trim(), authToken: "google-account",
+    expiresAt: session.expiresAt, personalEarningsProfile: sharedProfile(session),
+    earningsTracker: true, earningsSiteUrl: session.earningsUrl };
+}
+
 async function authenticateManagerPin(pin){
   const cleanPin = String(pin || "").replace(/\D+/g, "").slice(0, 4);
   if (cleanPin.length !== 4) {
     throw new Error("Enter a valid 4-digit PIN.");
   }
+  if (SHARED_GOOGLE_APP) return parseSharedSession(await sharedApi("signInSharedManager", cleanPin));
 
   const data = await postToAppsScript(BACKEND_ENDPOINT, {
     action: "authManagerPin",
@@ -3132,6 +3216,13 @@ async function validateManagerSession(name, token){
   if (!managerName || !authToken) return false;
 
   try {
+    if (SHARED_GOOGLE_APP) {
+      const session = parseSharedSession(await sharedApi("getSharedManagerSession"));
+      if (session.managerName.toLowerCase() !== managerName.toLowerCase()) return false;
+      personalEarningsProfile = session.personalEarningsProfile;
+      setEarningsTrackerAccess(true, session.earningsSiteUrl);
+      return true;
+    }
     const data = await postToAppsScript(BACKEND_ENDPOINT, {
       action: "validateManagerSession",
       managerName,
@@ -3200,6 +3291,45 @@ $("staffBody").addEventListener("input", saveDraft);
 $("staffBody").addEventListener("input", updateResults);
 $("downloadPersonalEarnings").addEventListener("click", () => downloadPersonalEarnings());
 $("downloadPersonalEarningsFallback").addEventListener("click", () => downloadPersonalEarnings(false));
+$("personalRatesForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!SHARED_GOOGLE_APP || !event.target.reportValidity()) return;
+  const button = event.target.querySelector('button[type="submit"]');
+  button.disabled = true;
+  $("personalRatesStatus").textContent = "Saving your rates privately...";
+  try {
+    const values = Object.fromEntries(new FormData(event.target));
+    await sharedApi("saveHourlyRates", values);
+    const session = parseSharedSession(await sharedApi("getSharedManagerSession"));
+    if (session.managerName.toLowerCase() !== authenticatedManagerName.toLowerCase()) {
+      throw new Error("Google account changed. Sign in again.");
+    }
+    personalEarningsProfile = session.personalEarningsProfile;
+    $("personalRatesStatus").textContent = "Your rates were saved.";
+    updateResults();
+  } catch (error) {
+    $("personalRatesStatus").textContent = `Could not save your rates: ${error.message || error}`;
+  } finally {
+    button.disabled = false;
+  }
+});
+if (SHARED_GOOGLE_APP) {
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "visible" || !authenticatedManagerName || !authenticatedManagerToken) return;
+    try {
+      const session = parseSharedSession(await sharedApi("getSharedManagerSession"));
+      if (session.managerName.toLowerCase() !== authenticatedManagerName.toLowerCase()) {
+        throw new Error("Google account changed. Sign in again.");
+      }
+      personalEarningsProfile = session.personalEarningsProfile;
+      updateResults();
+    } catch (error) {
+      personalEarningsProfile = null;
+      updateResults();
+      $("personalRatesStatus").textContent = `Could not refresh your rates: ${error.message || error}`;
+    }
+  });
+}
 document.querySelectorAll('input[name="isWedding"]').forEach(input => {
   input.addEventListener("change", () => {
     updateResults();
@@ -3216,7 +3346,7 @@ initNameSuggestions();
 initVenueSelect();
 initManagerGate();
 
-if ("serviceWorker" in navigator) {
+if (!SHARED_GOOGLE_APP && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   });

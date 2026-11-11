@@ -37,8 +37,30 @@ after(async () => {
   if (server) await new Promise(resolve => server.close(resolve));
 });
 
-async function openCalculator(t, width = 1100) {
+async function openCalculator(t, width = 1100, sharedGoogle = false) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: "block" });
+  if (sharedGoogle) await context.addInitScript(() => {
+    let rates = null;
+    const calls = [];
+    window.sharedCalls = calls;
+    const session = () => ({ managerName: "Test Manager", expiresAt: Date.now() + 600000,
+      hourlyRates: rates, earningsUrl: "https://script.google.com/macros/s/test/exec?view=earnings" });
+    const handlers = {
+      signInSharedManager: pin => { if (pin !== "1234") throw new Error("Invalid PIN"); return session(); },
+      getSharedManagerSession: session,
+      saveHourlyRates: input => { rates = { bartenderCents: Math.round(Number(input.bartender) * 100),
+        managerCents: Math.round(Number(input.manager) * 100) }; return rates; },
+      saveTransferredShift: input => { calls.push(input); return {}; }
+    };
+    const runner = {
+      withSuccessHandler(fn) { this.success = fn; return this; },
+      withFailureHandler(fn) { this.failure = fn; return this; }
+    };
+    Object.keys(handlers).forEach(name => {
+      runner[name] = (...args) => { try { runner.success(handlers[name](...args)); } catch (error) { runner.failure(error); } };
+    });
+    window.google = { script: { run: runner } };
+  });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -64,6 +86,38 @@ async function openCalculator(t, width = 1100) {
   });
   return page;
 }
+
+test("the public calculator directs managers to Google-account sign-in", async t => {
+  const context = await browser.newContext({ serviceWorkers: "block" });
+  t.after(() => context.close());
+  const page = await context.newPage();
+  await page.route("https://willschreinerjr-cmd.github.io/**", route =>
+    route.fulfill({ contentType: "text/html", body: fs.readFileSync(path.join(root, "index.html"), "utf8") }));
+  await page.route("https://script.google.com/macros/s/**", route =>
+    route.fulfill({ contentType: "text/html", body: "Google account app" }));
+  await page.goto("https://willschreinerjr-cmd.github.io/twobirds-tipout/");
+  await page.waitForURL(/script\.google\.com\/macros\/s\/.*\/exec/);
+  assert.equal(await page.locator("body").innerText(), "Google account app");
+});
+
+test("Google-account manager saves rates once and uses them in daily and saved earnings", async t => {
+  const page = await openCalculator(t, 390, true);
+  await signInAs(page, "1234", [["Bartender", "Test Manager", "2"], ["Shift Manager", "Test Manager", "3"]]);
+  assert.equal(await page.locator("#personalRatesForm").isVisible(), true);
+  assert.match(await page.locator("#personalRatesForm").innerText(), /stored privately in your Google account/);
+  await page.locator("#bartenderRate").fill("12.50");
+  await page.locator("#managerRate").fill("15.25");
+  await page.locator("#personalRatesForm button").click();
+  await page.waitForFunction(() => document.getElementById("personalRatesForm").hidden);
+  await text(page, "personalWages", "$70.75");
+  await page.locator("#saveShiftDate").fill("2026-11-06");
+  await page.locator("#saveMyShift").click();
+  await page.waitForFunction(() => document.getElementById("saveShiftStatus").textContent.startsWith("Saved"));
+  const calls = await page.evaluate(() => window.sharedCalls);
+  assert.deepEqual(calls[0].entries.map(entry => [entry.role, entry.hours]), [["Shift Manager", 3], ["Bartender", 2]]);
+  assert.equal(await page.locator("#privateTransfer").isVisible(), false);
+  assert.match(await page.locator("#openEarningsSite").getAttribute("href"), /\?view=earnings$/);
+});
 
 async function soloTimeCard(page) {
   await page.evaluate(() => {

@@ -1,7 +1,8 @@
 # TwoBirds Tipout
 
-Static, installable event tip-out calculator. Serve this directory with any static
-web server; there is no compilation or application build step.
+Event tip-out calculator hosted as a Google Apps Script web app. The public
+GitHub Pages address redirects to the Google-account app. Static local previews
+are for development only.
 
 ## Tips and wedding guarantees
 
@@ -42,10 +43,13 @@ web server; there is no compilation or application build step.
 
 ## Login and venue loading
 
-PIN verification and saved-session validation still require a successful server
-response; they time out after 20 seconds rather than waiting indefinitely. PIN
-verification displays slow-service feedback after 3 seconds. Google Apps Script
-startup and network latency can still affect authentication.
+Managers sign in with their approved Google account and then enter the PIN
+assigned to that account. A PIN alone cannot unlock the deployed calculator or
+save earnings. Managers without an approved account must be added by the app
+owner before they can use it. Google may request sign-in or authorization
+again; a permanent login cannot be guaranteed. PIN sessions expire after 12
+hours. The legacy PIN-only backend is disabled by default, including previously
+issued sessions.
 
 Selecting or changing a venue does not make any staff-loading requests. Staff
 names and hours are entered manually. There is no Toast API integration or API
@@ -53,14 +57,10 @@ credential requirement.
 
 ## Personal daily earnings
 
-Only the existing authenticated Will Schreiner and Renee Ehlers accounts receive
-their matching personal earnings profiles from the backend. No additional PINs
-are embedded in the page. Each private-in-the-UI section uses only that
-employee's named time card(s), tips, and actual role rate. Will earns $15/hour.
-Renee earns $12/hour as a bartender and $14/hour as shift manager. Her role
-rates are weighted by the hours on each matching time card. If she is assigned
-an unsupported role, her personal totals and download are paused until the
-time-card role is corrected.
+Each approved manager enters their own bartender and shift manager hourly rates
+once in the calculator. Rates are stored per Google account and can be changed
+in My Private Earnings. Each personal earnings section uses only that manager's
+named time cards, tips, and saved role rates.
 
 The two bottom sections compare:
 
@@ -113,59 +113,20 @@ is not saved in drafts, and is cleared when the
 session is cleared. Other accounts do not receive the profile. The updated
 Apps Script deployment is required before this section can appear.
 
-## Save My Shift (Will Schreiner only)
+## Private earnings
 
-Will's earnings history lives in a separate private app, **Will's Earnings**
-(repository `wills-earnings`). The calculator only adds a **Save My Shift**
-button and an **Open Will's Earnings** link to Will's personal earnings section;
-it does not store or display earnings history.
-
-- The backend offers this only to Will Schreiner's PIN-authenticated session.
-  Other managers, a staff row named "Will Schreiner", or values changed in the
-  browser cannot save shifts; other accounts never receive the button or the
-  site link. (The page's public JavaScript contains the button code, as it does
-  the personal earnings code; nothing private is served to other accounts.)
-- Save My Shift sends the event inputs (tip pots, wedding status, guest count,
-  venue, date, and time-card roles and hours, with coworkers' names replaced by
-  placeholders). The backend recalculates Will's earnings with the same code as
-  the page and the private wage and withholding profile, then writes the shift
-  to Will's private earnings sheet in whole cents. Browser totals are not trusted.
-- Each save carries an idempotency key; retrying an unchanged or failed save
-  reuses it, so a shift is never stored twice. Separate events on the same day
-  can be saved. If Will's Earnings is unavailable, the calculator keeps working,
-  shows the error, and keeps all inputs for a retry.
-- The shift date defaults to today; a shift saved before 3 AM counts toward the
-  previous day. Pay periods, editing, and deleting are handled in Will's Earnings.
-
-The backend reads Script Properties `WILLS_EARNINGS_SPREADSHEET_ID` (Will's
-Earnings data sheet) and `WILLS_EARNINGS_URL` (the site link). Expired manager
-sessions are pruned from Script Properties at each sign-in.
-
-## Individually owned earnings trackers
-
-Every PIN-authenticated manager can configure an optional **My Private Earnings**
-link on the venue screen. Each manager creates and owns their own Google Apps
-Script project and spreadsheet using the
-[setup instructions](https://github.com/willschreinerjr-cmd/wills-earnings#setting-up-your-own-private-tracker).
-The link is saved per manager in the current browser; it is not authentication.
-Each tracker is accessible only through its owner's Google account.
-
-After a shift, **Save My Shift** opens the manager's private tracker with their
-date, venue, role, hours and allocated tips ready for review and confirmation.
-It does not send their rates or earnings history to the shared backend.
-The tracker stores their bartender and manager rates independently and uses
-the current rate for new imports, without changing historical shifts. The
-shift is temporarily in the browser URL fragment and can be accessible on a
-shared device or through browser history or synchronization.
-Will's existing direct-save button remains available separately.
+Each approved manager's Google account has its own spreadsheet and saved rates.
+**Save My Shift** sends only that manager's shift details to the account-gated
+earnings app. Existing shifts keep their original wages and rates. The app
+owner controls the shared application code; keep Google accounts and devices
+secure. Will's existing spreadsheet is linked rather than copied.
 
 ## Backend deployment
 
-[google-apps-script.gs](google-apps-script.gs) handles manager PIN login,
-session validation, and Save My Shift. After changing it, update
-the existing Google Apps Script web app deployment to a new version so the URL
-stays the same. If the deployment URL changes, update `BACKEND_ENDPOINT` in
-[index.html](index.html).
+[google-apps-script.gs](google-apps-script.gs) is the retired legacy backend.
+Its PIN-only login, session validation and shift writes fail closed unless
+explicitly re-enabled for local compatibility testing; never re-enable them in
+production. The Google-account app's backend lives in the earnings repository.
 
 ## Verification
 

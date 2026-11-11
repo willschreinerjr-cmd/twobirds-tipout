@@ -64,8 +64,9 @@ class FakeSpreadsheet {
   }
 }
 
-function loadBackend({ properties = new Map(), spreadsheets = [], connectEarnings = true } = {}) {
+function loadBackend({ properties = new Map(), spreadsheets = [], connectEarnings = true, enableLegacy = true } = {}) {
   let uuid = 0;
+  if (enableLegacy) properties.set("LEGACY_PIN_AUTH_ENABLED", "true");
   if (connectEarnings && !properties.has("WILLS_EARNINGS_SPREADSHEET_ID")) {
     const data = new FakeSpreadsheet("Will's Earnings - Private Data", `earnings-${spreadsheets.length + 1}`);
     spreadsheets.push(data);
