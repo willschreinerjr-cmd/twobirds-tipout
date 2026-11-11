@@ -86,7 +86,7 @@ async function text(page, id, expected) {
   assert.equal(await page.locator(`#${id}`).textContent(), expected, id);
 }
 
-test("a manager can link their private tracker and prepare only their own shift", async t => {
+test("a manager can open their private tracker to save only their own shift", async t => {
   const page = await openCalculator(t);
   await useFakeBackend(page);
   await signInAs(page, "2334", [["Shift Manager", "Jake Faapito", "3"], ["Bartender", "Someone Else", "3"]]);
@@ -96,17 +96,17 @@ test("a manager can link their private tracker and prepare only their own shift"
     localStorage.setItem("twobirds-private-tracker:jake faapito", "https://script.google.com/macros/s/example/exec");
     renderVenueGateEarningsLink();
   });
-  assert.equal(await page.locator("#venueGateEarningsLink").getAttribute("href"), "https://script.google.com/macros/s/example/exec?v=2");
+  assert.equal(await page.locator("#venueGateEarningsLink").getAttribute("href"), "https://script.google.com/macros/s/example/exec?v=20261111b");
   assert.equal(await page.locator("#privateTrackerSetup").count(), 0, "configured managers see only their earnings button");
   await fill(page, "pot", "100");
   await fill(page, "creditPot", "50");
   await page.locator("#privateTransferDate").fill("2026-11-06");
+  await page.evaluate(() => { window.open = url => { window.testShiftUrl = url; }; });
   await page.locator("#preparePrivateTransfer").click();
-  const transfer = JSON.parse(await page.locator("#privateTransferText").inputValue());
+  const transfer = await page.evaluate(() => JSON.parse(decodeURIComponent(window.testShiftUrl.split("#shift=")[1])));
   assert.deepEqual(transfer.entries, [{ role: "Shift Manager", hours: 3, cashTipsCents: 5100, creditTipsCents: 2500, guaranteeCents: 0 }]);
   assert.doesNotMatch(JSON.stringify(transfer), /Jake|Someone/);
-  await fill(page, "pot", "200");
-  assert.equal(await page.locator("#privateTransferOutput").isVisible(), false);
+  assert.doesNotMatch(await page.locator("body").innerText(), /Transfer My Shift Privately/);
   await page.evaluate(() => clearManagerSessionStorage());
   assert.equal(await page.locator("#privateTransfer").isVisible(), false);
 });
@@ -765,7 +765,7 @@ test("Save My Shift sends Will's event inputs once, retries safely, and never st
   const { backend, requests, setAvailable } = await useFakeBackend(page);
   await signInAs(page, "1218", [["Shift Manager", "Will Schreiner", "5"], ["Bartender", "Someone Else", "5"]]);
   await page.locator("#saveMyShift").waitFor();
-  assert.equal(await page.locator("#openEarningsSite").getAttribute("href"), "https://script.google.com/macros/s/test-earnings-site/exec?v=2");
+  assert.equal(await page.locator("#openEarningsSite").getAttribute("href"), "https://script.google.com/macros/s/test-earnings-site/exec?v=20261111b");
   assert.equal(await page.locator("#earningsTracker, #trackerShifts, #trackerSummary").count(), 0, "no dashboard in the calculator");
   assert.equal(await page.locator("#saveShiftDate").inputValue(), await page.evaluate(() => businessDateISO()));
   assert.equal(await page.evaluate(() => businessDateISO(new Date(2026, 10, 6, 2, 30))), "2026-11-05");
@@ -814,7 +814,7 @@ test("Save My Shift sends Will's event inputs once, retries safely, and never st
   assert.equal(await page.locator("#saveShiftControls").count(), 0);
 });
 
-test("Save My Shift never appears or works for anyone except Will's verified account", async t => {
+test("Will's direct save remains inaccessible to other manager accounts", async t => {
   const page = await openCalculator(t, 390);
   const { requests } = await useFakeBackend(page);
   const willStaff = [["Shift Manager", "Will Schreiner", "5"]];
@@ -823,7 +823,7 @@ test("Save My Shift never appears or works for anyone except Will's verified acc
   const renee = await signInAs(page, "1212", [["Bartender", "Renee Ehlers", "3"], ...willStaff]);
   assert.equal(await page.locator("#personalEarnings").isVisible(), true);
   assert.equal(await page.locator("#saveShiftControls, #saveMyShift, #openEarningsSite").count(), 0);
-  assert.doesNotMatch(await page.locator("body").innerText(), /Save My Shift|Will's Earnings|Pay Period/i);
+  assert.doesNotMatch(await page.locator("body").innerText(), /Will's Earnings|Pay Period/i);
 
   const jake = await signInAs(page, "2334", willStaff);
   assert.equal(await page.locator("#personalEarnings").isVisible(), false);

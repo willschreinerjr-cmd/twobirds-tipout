@@ -150,12 +150,13 @@ Script project and spreadsheet using the
 The link is saved per manager in the current browser; it is not authentication.
 Each tracker is accessible only through its owner's Google account.
 
-After a shift, **Transfer My Shift Privately** copies that manager's date,
-venue, role, hours and allocated tips for review and confirmation in their own
-tracker. It does not send their rates or earnings history to the shared backend.
+After a shift, **Save My Shift** opens the manager's private tracker with their
+date, venue, role, hours and allocated tips ready for review and confirmation.
+It does not send their rates or earnings history to the shared backend.
 The tracker stores their bartender and manager rates independently and uses
 the current rate for new imports, without changing historical shifts. The
-clipboard and browser can be accessible to others on a shared device.
+shift is temporarily in the browser URL fragment and can be accessible on a
+shared device or through browser history or synchronization.
 Will's existing direct-save button remains available separately.
 
 ## Backend deployment

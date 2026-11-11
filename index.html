@@ -587,7 +587,7 @@
     .venue-gate-earnings{ text-align:center; }
     .venue-gate-earnings .private-earnings-button{ display:block; margin:14px auto 8px; padding:13px 18px; border-radius:14px; background:#1f2937; color:#fff; font-weight:800; text-decoration:none; }
     .venue-gate-earnings details{ font-size:13px; text-align:left; }
-    .venue-gate-earnings input, #privateTransferText{ width:100%; margin-top:8px; padding:8px; }
+    .venue-gate-earnings input{ width:100%; margin-top:8px; padding:8px; }
     .earnings-site-link{ display:inline-block; margin-top:6px; font-size:14px; font-weight:700; color:var(--green-dark); }
     .results-card thead th:nth-child(2),
     .results-card tbody td:nth-child(2){ text-align:center; }
@@ -985,16 +985,11 @@
         </div>
       </section>
       <section id="privateTransfer" class="guarantee-section" hidden>
-        <h2>Transfer My Shift Privately</h2>
-        <p class="field-help">Add your own name and hours to the staff list. Copy your shift here, then paste and confirm it in your own Google earnings tracker. Your hourly rates stay in your tracker.</p>
+        <h2>Save My Shift</h2>
+        <p class="field-help">Add your name and hours above, then save your shift to your private earnings page.</p>
         <label class="field-label" for="privateTransferDate">Shift date</label>
         <input id="privateTransferDate" type="date">
-        <button id="preparePrivateTransfer" type="button">Prepare My Shift</button>
-        <div id="privateTransferOutput" hidden>
-          <label class="field-label" for="privateTransferText">Copy this transfer and paste it into your tracker</label>
-          <textarea id="privateTransferText" rows="4" readonly></textarea>
-          <button id="copyPrivateTransfer" type="button">Copy Transfer</button>
-        </div>
+        <button id="preparePrivateTransfer" type="button">Save My Shift</button>
         <p id="privateTransferStatus" class="field-help" role="status"></p>
       </section>
     </div>
@@ -1651,7 +1646,7 @@ function renderVenueGateEarningsLink(){
 function personalTrackerUrl(){
   try {
     const url = localStorage.getItem("twobirds-private-tracker:" + authenticatedManagerName.toLowerCase()) || "";
-    if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return `${url}?v=2`;
+    if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return `${url}?v=20261111b`;
   } catch (error) {
     console.warn("Could not read the private tracker link.", error);
   }
@@ -2141,8 +2136,6 @@ function getCurrentCalculation(){
 }
 
 function updateResults(){
-  $("privateTransferOutput").hidden = true;
-  $("privateTransferText").value = "";
   validateCreditInput();
   $("guestField").hidden = !isWeddingEvent();
   const guest = getEventGuestCount();
@@ -2354,7 +2347,7 @@ async function downloadPersonalEarnings(preferShare = true){
 
 function updatePersonalEarnings(result){
   const section = $("personalEarnings");
-  $("privateTransfer").hidden = !authenticatedManagerName || !authenticatedManagerToken;
+  $("privateTransfer").hidden = !authenticatedManagerName || !authenticatedManagerToken || canAccessEarningsTracker();
   const authorized = canAccessPersonalEarnings();
   section.hidden = !authorized;
   $("personalMinimumStatus").hidden = true;
@@ -2439,7 +2432,7 @@ function readEarningsTrackerAccess(data, managerName, profile){
 
 function readEarningsSiteUrl(data){
   const url = String(data?.earningsSiteUrl || "");
-  return /^https:\/\/script\.google\.com\/[\w\-./]+$/.test(url) ? `${url}?v=2` : "";
+  return /^https:\/\/script\.google\.com\/[\w\-./]+$/.test(url) ? `${url}?v=20261111b` : "";
 }
 
 function setEarningsTrackerAccess(enabled, siteUrl = ""){
@@ -2470,7 +2463,6 @@ function businessDateISO(now = new Date()){
 
 function preparePrivateShift(){
   const status = $("privateTransferStatus");
-  $("privateTransferOutput").hidden = true;
   if (!authenticatedManagerName || !authenticatedManagerToken) {
     status.textContent = "Sign in with your manager PIN first.";
     return;
@@ -2496,28 +2488,18 @@ function preparePrivateShift(){
     status.textContent = `Add ${authenticatedManagerName} and your hours to the staff list first.`;
     return;
   }
-  $("privateTransferText").value = JSON.stringify({ version: 1, shiftDate: date, venue,
-    eventType: isWeddingEvent() ? "wedding" : "non-wedding", entries });
-  $("privateTransferOutput").hidden = false;
-  status.textContent = "Copy the transfer, then review and save it in your private tracker.";
+  const url = personalTrackerUrl();
+  if (!url) {
+    status.textContent = "Set up your private earnings page from the venue selection screen first.";
+    return;
+  }
+  const shift = { version: 1, shiftDate: date, venue,
+    eventType: isWeddingEvent() ? "wedding" : "non-wedding", entries };
+  window.open(`${url}#shift=${encodeURIComponent(JSON.stringify(shift))}`, "_blank", "noopener");
+  status.textContent = "Your earnings page should open. Review and confirm your shift there. If it did not open, allow pop-ups and try again. If the shift details do not appear, your earnings page needs an update before you can save.";
 }
 
 $("preparePrivateTransfer").addEventListener("click", preparePrivateShift);
-$("privateTransferDate").addEventListener("change", () => {
-  $("privateTransferOutput").hidden = true;
-  $("privateTransferText").value = "";
-});
-$("copyPrivateTransfer").addEventListener("click", async () => {
-  const field = $("privateTransferText");
-  try {
-    await navigator.clipboard.writeText(field.value);
-    $("privateTransferStatus").textContent = "Copied. Paste it into your private tracker.";
-  } catch (error) {
-    field.focus();
-    field.select();
-    $("privateTransferStatus").textContent = "Select and copy the transfer manually.";
-  }
-});
 $("privateTransferDate").value = businessDateISO();
 
 function isoToDayNumber(iso){
